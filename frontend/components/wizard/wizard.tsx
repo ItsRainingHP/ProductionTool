@@ -397,12 +397,6 @@ export function Wizard() {
                   <Heading id="step-title" tabIndex={-1} as="h1" variant="display-strong-s">Upload CSV data</Heading>
                     <Text variant="body-default-m" onBackground="neutral-weak">Choose one supported CSV. Files are removed when you finish or after {Math.round(capabilities.job_ttl_seconds / 3600)} hours.</Text>
                 </Column>
-                <Column role="note" fillWidth gap="8" padding="16" radius="m" background="brand-alpha-weak" border="brand-alpha-medium" className="workspace-notice">
-                  <Text variant="label-strong-s">Private-network, temporary workspace</Text>
-                  <Text variant="body-default-s">
-                    This tool has no user accounts and must remain behind organization-approved network or identity controls. Files are retained temporarily, and generated work should be independently reviewed before legal use or external sharing.
-                  </Text>
-                </Column>
                 <Panel className="upload-panel">
                   <Card
                     className="upload-dropzone"
