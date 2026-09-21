@@ -204,7 +204,13 @@ jobs:
         run: npm run test:e2e
       - name: Show container logs after failure
         if: failure()
-        run: docker logs production-tool-ci
+        shell: bash
+        run: |
+          if docker container inspect production-tool-ci >/dev/null 2>&1; then
+            docker logs production-tool-ci || true
+          else
+            echo "Container production-tool-ci was not created; see the earlier failed step."
+          fi
       - name: Assemble release evidence
         if: always()
         shell: bash
