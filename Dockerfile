@@ -47,11 +47,11 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=web-build /usr/local/bin/node /usr/local/bin/node
-COPY --from=web-build /usr/local/lib/node_modules /usr/local/lib/node_modules
 
 WORKDIR /app/backend
 COPY backend/requirements.txt backend/requirements.lock ./
-RUN pip install --no-cache-dir --require-hashes -r requirements.lock
+RUN pip install --no-cache-dir --require-hashes -r requirements.lock \
+    && pip uninstall --yes pip
 COPY backend/app ./app
 
 WORKDIR /app/frontend
