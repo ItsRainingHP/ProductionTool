@@ -58,6 +58,21 @@ docker run --rm --name production-tool -p 127.0.0.1:3000:3000 -v production-tool
 
 For shared use, follow [deploy/OPERATIONS.md](deploy/OPERATIONS.md). The account-free application must remain behind an organization-managed TLS gateway and restricted private-network allowlist with immutable request audit logging.
 
+### Publish to Docker Hub
+
+The CI workflow calls `.github/workflows/docker-publish.yml` only after the backend, frontend, production-container, browser, SBOM, and vulnerability checks pass. Configure these GitHub Actions repository secrets:
+
+- `DOCKER_USERNAME` — the Docker Hub account or organization that owns the image.
+- `DOCKER_PASSWORD` — a Docker Hub personal access token with read/write permission.
+
+Create a Docker Hub repository named `production-tool` in that namespace before the first run and select the approved visibility. Images are published to `docker.io/<docker-username>/production-tool`. A push to `main` publishes `main` and `sha-<full-commit>` tags. A tag such as `v1.2.0` must match `VERSION`; it publishes `1.2.0`, `latest`, and the commit tag. The workflow summary records the resulting OCI digest.
+
+Mutable tags are convenient for discovery, but production deployments must pin the digest reported by the successful workflow:
+
+```powershell
+docker pull docker.io/<docker-username>/production-tool@sha256:<published-digest>
+```
+
 ## Local development
 
 Start the API from the repository root:
