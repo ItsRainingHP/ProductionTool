@@ -1,0 +1,3 @@
+# Preserve the exact bytes of the synthetic CSV corpus. Some fixtures
+# intentionally use unusual encodings, byte-order marks, and line endings.
+examples/**/*.csv binary

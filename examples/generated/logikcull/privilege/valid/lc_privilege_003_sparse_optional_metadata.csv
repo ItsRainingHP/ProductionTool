@@ -1,0 +1,6 @@
+Bates/Control #,End Bates/Control #,Author,Bcc,Cc,Date Sent,Date Received,From,Title,Subject,To,Filename,Privilege,Privilege Reason,Redactions
+SYNLCPRV003-0000001,SYNLCPRV003-0000001,,,,,,,Synthetic title 00000,,,,,,Yes
+SYNLCPRV003-0000005,SYNLCPRV003-0000006,,,,2025-02-02 09:30:00 -08:00,,sender002@example.test,,,,,No,,
+SYNLCPRV003-0000009,SYNLCPRV003-0000011,,blind003@example.test,,,2025-03-03 09:31:00 -08:00,,,,,synthetic_document_00002.pdf,,,
+SYNLCPRV003-0000013,SYNLCPRV003-0000013,,,copy004@example.test,,,,,Synthetic subject 00003,recipient004@example.test,,,,
+SYNLCPRV003-0000017,SYNLCPRV003-0000018,Synthetic Person 005,,,,,,,,,,,Synthetic work product,

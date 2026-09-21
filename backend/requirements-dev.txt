@@ -1,0 +1,13 @@
+# Development and test dependencies for the backend.
+# Author: Brent Coleman
+# Copyright (c) 2026 Brent Coleman
+# SPDX-License-Identifier: MIT
+
+-r requirements.txt
+httpx2==2.13.0
+mypy==2.3.1
+pip-audit==2.10.1
+pip-tools==7.6.1
+pytest==8.4.2
+pytest-cov==7.1.0
+ruff==0.16.8

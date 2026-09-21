@@ -1,0 +1,30 @@
+# Frontend
+frontend/node_modules/
+frontend/.next/
+frontend/coverage/
+frontend/*.tsbuildinfo
+frontend/playwright-report/
+frontend/test-results/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.pytest-temp*/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.venv/
+
+# Runtime
+data/
+artifacts/
+.env
+.env.*
+!.env.example
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

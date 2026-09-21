@@ -1,0 +1,31 @@
+name: Feature request
+description: Propose a focused improvement to the Production Tool.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: User need
+      description: Describe the workflow problem and who encounters it.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: Describe the observable result without prescribing an implementation unless necessary.
+    validations:
+      required: true
+  - type: textarea
+    id: examples
+    attributes:
+      label: Synthetic examples
+      description: Include only fictional or sanitized examples that clarify the request.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Data-safety confirmation
+      options:
+        - label: I have not included confidential, client-derived, personal, privileged, or production data.
+          required: true

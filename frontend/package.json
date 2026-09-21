@@ -1,0 +1,42 @@
+{
+  "name": "production-tool-web",
+  "version": "1.2.0",
+  "description": "Web interface for converting discovery CSV exports into RFP ranges and privilege logs.",
+  "author": "Brent Coleman",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "generate:api": "openapi-typescript http://127.0.0.1:8000/openapi.json -o lib/api-schema.d.ts",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "check:unused": "knip"
+  },
+  "dependencies": {
+    "@once-ui-system/core": "1.8.5",
+    "next": "16.3.5",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "sass": "1.104.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@testing-library/jest-dom": "6.10.0",
+    "@testing-library/react": "16.3.3",
+    "@types/node": "22.20.4",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "5.2.0",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.3.5",
+    "jsdom": "27.4.0",
+    "knip": "6.37.0",
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  }
+}

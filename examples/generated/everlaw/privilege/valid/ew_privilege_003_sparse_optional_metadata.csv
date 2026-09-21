@@ -1,0 +1,6 @@
+Begin Bates num from SYNTHETIC_PROD_001,End Bates num from SYNTHETIC_PROD_001,Date,File Name,Email From,Email To,Email CC,Email BCC,Email Subject,Tag: Privilege - Redact,Tag: Privilege - Withhold,Tag: AC-WP,Tag: Attorney-Client,Tag: Synthetic Privacy
+SYNEWPRV003-0000001,SYNEWPRV003-0000001,,,sender001@example.test,,,,,,,Yes,,
+SYNEWPRV003-0000005,SYNEWPRV003-0000006,2025-02-02,synthetic_document_00001.pdf,,,,blind002@example.test,,,,,,
+SYNEWPRV003-0000009,SYNEWPRV003-0000011,,,,recipient003@example.test,copy003@example.test,,Synthetic subject 00002,,,,,
+SYNEWPRV003-0000013,SYNEWPRV003-0000013,,,,,,,,,,,,
+SYNEWPRV003-0000017,SYNEWPRV003-0000018,,,,,,,,,,,,

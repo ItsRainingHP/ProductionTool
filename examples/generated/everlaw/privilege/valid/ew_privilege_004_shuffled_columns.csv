@@ -1,0 +1,11 @@
+Date,Email From,Email CC,Email Subject,Tag: Privilege - Withhold,Tag: Attorney-Client,End Bates num from SYNTHETIC_PROD_001,File Name,Email To,Email BCC,Tag: Privilege - Redact,Tag: AC-WP,Tag: Synthetic Privacy,Begin Bates num from SYNTHETIC_PROD_001
+2025-01-01,sender001@example.test,copy001@example.test,Synthetic subject 00000,,,SYNEWPRV004-0000001,synthetic_document_00000.pdf,recipient001@example.test,blind001@example.test,Yes,Yes,Yes,SYNEWPRV004-0000001
+2025-02-02,sender002@example.test,copy002@example.test,Synthetic subject 00001,Yes,Yes,SYNEWPRV004-0000006,synthetic_document_00001.pdf,recipient002@example.test,blind002@example.test,,,,SYNEWPRV004-0000005
+2025-03-03,sender003@example.test,copy003@example.test,Synthetic subject 00002,,,SYNEWPRV004-0000011,synthetic_document_00002.pdf,recipient003@example.test,blind003@example.test,,,,SYNEWPRV004-0000009
+2025-04-04,sender004@example.test,copy004@example.test,Synthetic subject 00003,,,SYNEWPRV004-0000013,synthetic_document_00003.pdf,recipient004@example.test,blind004@example.test,,Yes,,SYNEWPRV004-0000013
+2025-05-05,sender005@example.test,copy005@example.test,Synthetic subject 00004,,Yes,SYNEWPRV004-0000018,synthetic_document_00004.pdf,recipient005@example.test,blind005@example.test,Yes,,,SYNEWPRV004-0000017
+2025-06-06,sender006@example.test,copy006@example.test,Synthetic subject 00005,Yes,,SYNEWPRV004-0000023,synthetic_document_00005.pdf,recipient006@example.test,blind006@example.test,,,Yes,SYNEWPRV004-0000021
+2025-07-07,sender007@example.test,copy007@example.test,Synthetic subject 00006,,,SYNEWPRV004-0000025,synthetic_document_00006.pdf,recipient007@example.test,blind007@example.test,,Yes,,SYNEWPRV004-0000025
+2025-08-08,sender008@example.test,copy008@example.test,Synthetic subject 00007,,Yes,SYNEWPRV004-0000030,synthetic_document_00007.pdf,recipient008@example.test,blind008@example.test,,,,SYNEWPRV004-0000029
+2025-09-09,sender009@example.test,copy009@example.test,Synthetic subject 00008,,,SYNEWPRV004-0000035,synthetic_document_00008.pdf,recipient009@example.test,blind009@example.test,Yes,,,SYNEWPRV004-0000033
+2025-10-10,sender010@example.test,copy010@example.test,Synthetic subject 00009,Yes,,SYNEWPRV004-0000037,synthetic_document_00009.pdf,recipient010@example.test,blind010@example.test,,Yes,,SYNEWPRV004-0000037

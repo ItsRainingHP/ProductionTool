@@ -1,0 +1,9 @@
+# Production dependencies for the FastAPI service and process supervisor.
+# Author: Brent Coleman
+# Copyright (c) 2026 Brent Coleman
+# SPDX-License-Identifier: MIT
+
+fastapi==0.141.1
+python-multipart==0.0.32
+uvicorn[standard]==0.53.0
+supervisor==4.3.0

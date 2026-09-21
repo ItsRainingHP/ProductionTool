@@ -1,0 +1,16 @@
+Begin Bates num from SYNTHETIC_PROD_001,Date,File Name,Email From,Email To,Email CC,Email BCC,Email Subject,Tag: Privilege - Redact,Tag: Privilege - Withhold,Tag: AC-WP,Tag: Attorney-Client,Tag: Synthetic Privacy
+SYNEWPRV019-0000001,2025-01-01,synthetic_document_00000.pdf,sender001@example.test,recipient001@example.test,copy001@example.test,blind001@example.test,Synthetic subject 00000,Yes,,Yes,,Yes
+SYNEWPRV019-0000005,2025-02-02,synthetic_document_00001.pdf,sender002@example.test,recipient002@example.test,copy002@example.test,blind002@example.test,Synthetic subject 00001,,Yes,,Yes,
+SYNEWPRV019-0000009,2025-03-03,synthetic_document_00002.pdf,sender003@example.test,recipient003@example.test,copy003@example.test,blind003@example.test,Synthetic subject 00002,,,,,
+SYNEWPRV019-0000013,2025-04-04,synthetic_document_00003.pdf,sender004@example.test,recipient004@example.test,copy004@example.test,blind004@example.test,Synthetic subject 00003,,,Yes,,
+SYNEWPRV019-0000017,2025-05-05,synthetic_document_00004.pdf,sender005@example.test,recipient005@example.test,copy005@example.test,blind005@example.test,Synthetic subject 00004,Yes,,,Yes,
+SYNEWPRV019-0000021,2025-06-06,synthetic_document_00005.pdf,sender006@example.test,recipient006@example.test,copy006@example.test,blind006@example.test,Synthetic subject 00005,,Yes,,,Yes
+SYNEWPRV019-0000025,2025-07-07,synthetic_document_00006.pdf,sender007@example.test,recipient007@example.test,copy007@example.test,blind007@example.test,Synthetic subject 00006,,,Yes,,
+SYNEWPRV019-0000029,2025-08-08,synthetic_document_00007.pdf,sender008@example.test,recipient008@example.test,copy008@example.test,blind008@example.test,Synthetic subject 00007,,,,Yes,
+SYNEWPRV019-0000033,2025-09-09,synthetic_document_00008.pdf,sender009@example.test,recipient009@example.test,copy009@example.test,blind009@example.test,Synthetic subject 00008,Yes,,,,
+SYNEWPRV019-0000037,2025-10-10,synthetic_document_00009.pdf,sender010@example.test,recipient010@example.test,copy010@example.test,blind010@example.test,Synthetic subject 00009,,Yes,Yes,,
+SYNEWPRV019-0000041,2025-11-11,synthetic_document_00010.pdf,sender011@example.test,recipient011@example.test,copy011@example.test,blind011@example.test,Synthetic subject 00010,,,,Yes,Yes
+SYNEWPRV019-0000045,2025-12-12,synthetic_document_00011.pdf,sender012@example.test,recipient012@example.test,copy012@example.test,blind001@example.test,Synthetic subject 00011,,,,,
+SYNEWPRV019-0000049,2025-01-13,synthetic_document_00012.pdf,sender013@example.test,recipient013@example.test,copy013@example.test,blind002@example.test,Synthetic subject 00012,Yes,,Yes,,
+SYNEWPRV019-0000053,2025-02-14,synthetic_document_00013.pdf,sender014@example.test,recipient014@example.test,copy014@example.test,blind003@example.test,Synthetic subject 00013,,Yes,,Yes,
+SYNEWPRV019-0000057,2025-03-15,synthetic_document_00014.pdf,sender015@example.test,recipient015@example.test,copy015@example.test,blind004@example.test,Synthetic subject 00014,,,,,
