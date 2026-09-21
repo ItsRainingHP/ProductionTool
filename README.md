@@ -65,7 +65,7 @@ The CI workflow calls `.github/workflows/docker-publish.yml` only after the back
 - `DOCKER_USERNAME` — the Docker Hub account or organization that owns the image.
 - `DOCKER_PASSWORD` — a Docker Hub personal access token with read/write permission.
 
-Create a Docker Hub repository named `production-tool` in that namespace before the first run and select the approved visibility. Images are published to `docker.io/<docker-username>/production-tool`. A push to `main` publishes `main` and `sha-<full-commit>` tags. A tag such as `v1.2.0` must match `VERSION`; it publishes `1.2.0`, `latest`, and the commit tag. The workflow summary records the resulting OCI digest.
+Create a Docker Hub repository named `production-tool` in that namespace before the first run and select the approved visibility. Images are published to `docker.io/<docker-username>/production-tool`. A push to `main` publishes `main`, `latest`, and `sha-<full-commit>` tags. A tag such as `v1.2.0` must match `VERSION`; it publishes `1.2.0`, `latest`, and the commit tag. The workflow summary records the resulting OCI digest.
 
 Mutable tags are convenient for discovery, but production deployments must pin the digest reported by the successful workflow:
 
