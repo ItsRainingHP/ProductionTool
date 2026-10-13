@@ -43,6 +43,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     SQLITE_TMPDIR=/data/jobs/.sqlite-tmp
 
 RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
     && apt-get install -y --no-install-recommends curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
