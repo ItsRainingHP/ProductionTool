@@ -1016,6 +1016,7 @@ class JobStore:
             job.status = JobStatus.failed
             capacity_error = (
                 isinstance(error, (ResourceLimitError, ProcessingLimitError))
+                or isinstance(error, HTTPException) and error.status_code == 507
                 or isinstance(error, OSError) and error.errno == errno.ENOSPC
                 or isinstance(error, sqlite3.DatabaseError) and "full" in str(error).casefold()
             )

@@ -203,6 +203,10 @@ def test_worker_failure_cleans_partial_data_and_releases_reservation(
     assert store.get(job.job_id).error_code == "resource_limit_exceeded"
     store._mark_worker_failure(str(jobs_module.uuid.uuid4()), RuntimeError("deleted"))
 
+    another = store.create()
+    store._mark_worker_failure(another.job_id, HTTPException(507, "Job storage is full"))
+    assert store.get(another.job_id).error_code == "resource_limit_exceeded"
+
 
 def test_unavailable_artifacts_and_invalid_job_ids_are_reported(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
