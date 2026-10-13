@@ -13,6 +13,7 @@ import { Button, Card, Column, Grid, Heading, Icon, Input, ProgressBar, Row, Tab
 import { AppFooter } from "@/components/app-footer";
 import { AppHeader } from "@/components/app-header";
 import { createJob, deleteJob, finalizeJob, getCapabilities, getJob, getPreview, readyForReview, setMapping, setPleadingSettings, setWorkflow, uploadSource } from "@/lib/api";
+import { clearAdvancedDraft, loadAdvancedDraft, saveAdvancedDraft } from "@/lib/advanced-draft";
 import { defaultOutputFilename, formatBytes, platformConfidenceLabel, platformConfidenceSentence } from "@/lib/format";
 import type { Capabilities, Job, MappingTemplate, OutputColumn, PleadingSettings, Preview, Workflow } from "@/lib/types";
 import { blockingIssues, clientFileError, validationTone, warningIssues, warningsAcknowledged } from "@/lib/validation";
@@ -37,13 +38,19 @@ const DEFAULT_CAPABILITIES: Capabilities = {
 const activeJobStatuses = new Set<Job["status"]>(["uploading", "analyzing", "preparing_review", "processing"]);
 const terminalAnalysisStatuses = new Set<Job["status"]>(["needs_configuration", "failed"]);
 
-async function pollJob(jobId: string, onUpdate: (job: Job) => void, terminal: (job: Job) => boolean): Promise<Job> {
+async function pollJob(jobId: string, onUpdate: (job: Job) => void, terminal: (job: Job) => boolean, signal: AbortSignal): Promise<Job> {
   let delay = 500;
   for (;;) {
-    const current = await getJob(jobId);
+    signal.throwIfAborted();
+    const current = await getJob(jobId, signal);
+    signal.throwIfAborted();
     onUpdate(current);
     if (terminal(current)) return current;
-    await new Promise((resolve) => window.setTimeout(resolve, delay));
+    await new Promise<void>((resolve, reject) => {
+      const timer = window.setTimeout(() => { signal.removeEventListener("abort", aborted); resolve(); }, delay);
+      const aborted = () => { window.clearTimeout(timer); reject(new DOMException("Operation canceled", "AbortError")); };
+      signal.addEventListener("abort", aborted, { once: true });
+    });
     delay = Math.min(5000, Math.round(delay * 1.5));
   }
 }
@@ -114,11 +121,18 @@ export function Wizard() {
   const [capabilities, setCapabilities] = useState<Capabilities>(DEFAULT_CAPABILITIES);
   const [templates, setTemplates] = useState<MappingTemplate[]>([]);
   const [advancedDirty, setAdvancedDirty] = useState(false);
+  const [draftStorageUnavailable, setDraftStorageUnavailable] = useState(false);
+  const [draftNotice, setDraftNotice] = useState("");
+  const [deletionState, setDeletionState] = useState<{ jobId: string; message: string; destination: "/" | "/wizard" } | null>(null);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const localUploadJobId = useRef<string | null>(null);
   const cancelRequested = useRef(false);
-  const uploadAbortController = useRef<AbortController | null>(null);
+  const operationController = useRef<AbortController | null>(null);
+  const loadController = useRef<AbortController | null>(null);
+  const previewError = useRef("");
+
+  useEffect(() => () => { operationController.current?.abort(); loadController.current?.abort(); }, []);
 
   useEffect(() => {
     getCapabilities().then(setCapabilities).catch(() => undefined);
@@ -145,34 +159,80 @@ export function Wizard() {
 
   const requestNavigation = useCallback((next: StepKey) => {
     if (busy) return;
-    if (step === "advanced" && advancedDirty && !window.confirm("Discard unsaved Advanced-step changes?")) return;
-    setAdvancedDirty(false);
+    if (step === "advanced" && advancedDirty && draftStorageUnavailable
+      && !window.confirm("This tab could not save your Advanced changes. Leave this step and lose them?")) return;
     navigate(next);
-  }, [advancedDirty, busy, navigate, step]);
+  }, [advancedDirty, busy, draftStorageUnavailable, navigate, step]);
+
+  const discardAdvancedDraft = () => {
+    if (!job) return;
+    clearAdvancedDraft(job.job_id);
+    setMappingColumns(job.mapping?.columns ?? []);
+    setPleadingSettingsState(job.pleading_settings ?? { ...DEFAULT_PLEADING_SETTINGS });
+    setAcknowledged(job.reviewed_issue_codes ?? []);
+    setAdvancedDirty(false);
+    setDraftNotice("");
+    setDraftStorageUnavailable(false);
+  };
 
   useEffect(() => {
-    if (step !== "advanced" || !advancedDirty) return;
+    if (!advancedDirty || !job || job.status !== "needs_configuration") return;
+    let active = true;
+    const saved = saveAdvancedDraft({
+      schemaVersion: 1,
+      jobId: job.job_id,
+      configurationRevision: job.configuration_revision,
+      expiresAt: job.expires_at,
+      acknowledged,
+      mappingColumns: effectiveMappingColumns,
+      pleadingSettings,
+    });
+    queueMicrotask(() => {
+      if (!active) return;
+      setDraftStorageUnavailable(!saved);
+      setDraftNotice(saved ? "" : "This tab could not save your draft. Keep this page open or save before navigating.");
+    });
+    return () => { active = false; };
+  }, [acknowledged, advancedDirty, effectiveMappingColumns, job, pleadingSettings]);
+
+  useEffect(() => {
+    if (step !== "advanced" || !advancedDirty || !draftStorageUnavailable) return;
     const warnBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = "";
     };
     window.addEventListener("beforeunload", warnBeforeUnload);
     return () => window.removeEventListener("beforeunload", warnBeforeUnload);
-  }, [advancedDirty, step]);
+  }, [advancedDirty, draftStorageUnavailable, step]);
 
   useEffect(() => {
     if (!routeJobId) return;
     if (routeStep === "upload" && routeJobId === localUploadJobId.current) return;
     let active = true;
+    const controller = new AbortController();
+    loadController.current = controller;
     const loadJob = async () => {
       try {
-        const loaded = await getJob(routeJobId);
-        if (!active) return;
+        const loaded = await getJob(routeJobId, controller.signal);
+        if (!active || controller.signal.aborted) return;
         setJob(loaded);
+        setAcknowledged(loaded.reviewed_issue_codes ?? []);
+        if (loaded.status === "failed" && !loaded.analysis) setError(loaded.error ?? "CSV analysis failed. Choose the source CSV again.");
         setSelectedWorkflow(loaded.workflow ?? (loaded.analysis?.detected_workflow === "unknown" ? null : loaded.analysis?.detected_workflow ?? null));
         if (loaded.mapping) setMappingColumns(loaded.mapping.columns);
         setPleadingSettingsState(loaded.pleading_settings ?? { ...DEFAULT_PLEADING_SETTINGS });
-        setAdvancedDirty(false);
+        const draft = routeStep === "advanced" ? loadAdvancedDraft(loaded) : { status: "none" as const };
+        if (draft.status === "restored" && draft.draft) {
+          setAcknowledged(draft.draft.acknowledged);
+          setMappingColumns(draft.draft.mappingColumns);
+          setPleadingSettingsState(draft.draft.pleadingSettings);
+        }
+        setAdvancedDirty(draft.status === "restored");
+        if (draft.status === "stale") setDraftNotice("An earlier tab draft was discarded because this job changed or expired.");
+        if (draft.status === "unavailable") setDraftStorageUnavailable(true);
+        if (loaded.error_code === "deletion_pending") {
+          setDeletionState({ jobId: loaded.job_id, message: "Deletion is pending. Job files may still be retained.", destination: "/wizard" });
+        }
         if (routeStep === "review" && loaded.analysis) {
           setOutputFilename(defaultOutputFilename(loaded.analysis.filename, loaded.workflow));
         }
@@ -185,60 +245,98 @@ export function Wizard() {
         if (activeJobStatuses.has(loaded.status)) {
           setBusy(true);
           const resumedAnalysis = loaded.status === "uploading" || loaded.status === "analyzing";
-          const current = await pollJob(loaded.job_id, (update) => active && setJob(update), (update) => !activeJobStatuses.has(update.status));
-          if (!active) return;
+          const current = await pollJob(loaded.job_id, (update) => active && setJob(update), (update) => !activeJobStatuses.has(update.status), controller.signal);
+          if (!active || controller.signal.aborted) return;
           const destination = resumedAnalysis && current.analysis ? "data" : maximumStep(current);
+          if (current.status === "failed" && !current.analysis) setError(current.error ?? "CSV analysis failed. Choose the source CSV again.");
           setStep(destination);
           router.replace(`/wizard/${current.job_id}/${destination}`);
         }
       } catch (reason) {
-        if (!active) return;
+        if (!active || controller.signal.aborted) return;
         const message = reason instanceof Error ? reason.message : "Unable to load this production job.";
+        if (message === "Job expired" || message === "Job not found") clearAdvancedDraft(routeJobId);
         setError(message === "Job expired" ? "This production job has expired. Start a new upload." : message);
         router.replace("/wizard");
       } finally {
-        if (active) setBusy(false);
+        if (active && !controller.signal.aborted) setBusy(false);
       }
     };
     void loadJob();
-    return () => { active = false; };
+    return () => { active = false; controller.abort(); if (loadController.current === controller) loadController.current = null; };
   }, [routeJobId, routeStep, router]);
 
+  const previewJobId = job?.job_id;
+  const previewStatus = job?.status;
   useEffect(() => {
-    if (step !== "review" || !job || job.status === "processing") return;
-    getPreview(job.job_id)
-      .then(setPreview)
-      .catch((reason) => setError(reason.message));
-  }, [step, job]);
+    if (step !== "review" || !previewJobId || !previewStatus || !["ready_for_review", "complete"].includes(previewStatus)) return;
+    const controller = new AbortController();
+    getPreview(previewJobId, controller.signal)
+      .then((value) => {
+        if (controller.signal.aborted) return;
+        setPreview(value);
+        setError((current) => current === previewError.current ? "" : current);
+        previewError.current = "";
+      })
+      .catch((reason) => {
+        if (controller.signal.aborted) return;
+        previewError.current = reason instanceof Error ? reason.message : "Unable to load the preview.";
+        setError(previewError.current);
+      });
+    return () => controller.abort();
+  }, [step, previewJobId, previewStatus]);
+
+  const removeJob = async (jobId: string, destination: "/" | "/wizard"): Promise<boolean> => {
+    try {
+      const outcome = await deleteJob(jobId);
+      if (outcome === "pending") {
+        setDeletionState({ jobId, destination, message: "Deletion is pending. Job files may still be retained. Check again or retry deletion." });
+        return false;
+      }
+      clearAdvancedDraft(jobId);
+      setDeletionState(null);
+      return true;
+    } catch (reason) {
+      const detail = reason instanceof Error ? reason.message : "Deletion could not be confirmed.";
+      setDeletionState({ jobId, destination, message: `Deletion could not be confirmed. ${detail}` });
+      return false;
+    }
+  };
 
   const chooseFile = async (file: File) => {
     setError("");
     const fileError = clientFileError(file, capabilities.max_upload_bytes, new Set(capabilities.supported_content_types));
     if (fileError) { setError(fileError); return; }
+    const controller = new AbortController();
+    operationController.current = controller;
     const previousJobId = job?.job_id;
-    setStep("upload");
-    setJob(null);
-    setActiveJobId(null);
-    setUploadFile({ name: file.name, size: file.size });
-    setUploadTransfer({ loaded: 0, total: file.size, percent: 0 });
-    setUploadSessionActive(true);
     setBusy(true);
-    await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
     try {
-      if (previousJobId) await deleteJob(previousJobId).catch(() => undefined);
-      const created = await createJob();
+      controller.signal.throwIfAborted();
+      if (previousJobId && !await removeJob(previousJobId, "/wizard")) return;
+      controller.signal.throwIfAborted();
+      setStep("upload");
+      setJob(null);
+      setActiveJobId(null);
+      setUploadFile({ name: file.name, size: file.size });
+      setUploadTransfer({ loaded: 0, total: file.size, percent: 0 });
+      setUploadSessionActive(true);
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+      const created = await createJob(controller.signal);
+      controller.signal.throwIfAborted();
       setActiveJobId(created.job_id);
       localUploadJobId.current = created.job_id;
       // Keep the active upload in this mounted view. Navigating to an interim
       // upload URL can race the final Data navigation for fast analyses and
       // briefly remount the empty upload form between the two screens.
-      uploadAbortController.current = new AbortController();
-      const uploaded = await uploadSource(created.job_id, file, setUploadTransfer, uploadAbortController.current.signal);
+      const uploaded = await uploadSource(created.job_id, file, (progress) => { if (!controller.signal.aborted) setUploadTransfer(progress); }, controller.signal);
+      controller.signal.throwIfAborted();
       setUploadTransfer((current) => ({ ...current, percent: 100 }));
       setJob(uploaded);
       const analyzed = await pollJob(created.job_id, (current) => {
         setJob(current);
-      }, (current) => terminalAnalysisStatuses.has(current.status));
+      }, (current) => terminalAnalysisStatuses.has(current.status), controller.signal);
+      controller.signal.throwIfAborted();
       setSelectedWorkflow(analyzed.workflow ?? (analyzed.analysis?.detected_workflow === "unknown" ? null : analyzed.analysis?.detected_workflow ?? null));
       setMappingColumns([]);
       setPleadingSettingsState(analyzed.pleading_settings ?? { ...DEFAULT_PLEADING_SETTINGS });
@@ -246,17 +344,23 @@ export function Wizard() {
       setPreview(null);
       setAdvancedDirty(false);
       setActiveJobId(null);
-      setStep("data");
-      router.replace(`/wizard/${created.job_id}/data`);
+      if (analyzed.status === "failed" && !analyzed.analysis) {
+        setUploadSessionActive(false);
+        setError(analyzed.error ?? "CSV analysis failed. Choose the source CSV again.");
+        setStep("upload");
+      } else {
+        setStep("data");
+        router.replace(`/wizard/${created.job_id}/data`);
+      }
       window.setTimeout(() => document.querySelector<HTMLElement>("#step-title")?.focus(), 20);
     } catch (reason) {
+      if (controller.signal.aborted) return;
       localUploadJobId.current = null;
       setUploadSessionActive(false);
       if (!cancelRequested.current) setError(reason instanceof Error ? reason.message : "The upload failed.");
     } finally {
-      cancelRequested.current = false;
-      uploadAbortController.current = null;
-      setBusy(false);
+      if (operationController.current === controller) operationController.current = null;
+      if (!controller.signal.aborted) setBusy(false);
     }
   };
 
@@ -264,11 +368,11 @@ export function Wizard() {
     if (!job || !selectedWorkflow || blockingIssues(job.analysis).length) return;
     setBusy(true); setError("");
     try {
-      const updated = await setWorkflow(job.job_id, selectedWorkflow);
+      const updated = job.workflow === selectedWorkflow ? job : await setWorkflow(job.job_id, selectedWorkflow);
       setJob(updated);
       if (selectedWorkflow === "privilege_log") setMappingColumns(updated.mapping?.columns ?? defaultMapping(updated));
       if (selectedWorkflow === "rfp_ranges") setPleadingSettingsState(updated.pleading_settings ?? { ...DEFAULT_PLEADING_SETTINGS });
-      setAdvancedDirty(false);
+      if (job.workflow !== selectedWorkflow) { clearAdvancedDraft(job.job_id); setAdvancedDirty(false); }
       navigate("advanced");
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to save the workflow."); }
     finally { setBusy(false); }
@@ -276,37 +380,45 @@ export function Wizard() {
 
   const advanceFromAdvanced = async () => {
     if (!job || blockingIssues(job.analysis).length || !warningsAcknowledged(job.analysis, acknowledged)) return;
+    const controller = new AbortController(); operationController.current = controller;
     setBusy(true); setError("");
     try {
       let updated = job;
       if (job.workflow === "privilege_log") updated = await setMapping(job.job_id, { columns: effectiveMappingColumns });
       if (job.workflow === "rfp_ranges") updated = await setPleadingSettings(job.job_id, pleadingSettings);
+      setJob(updated);
+      clearAdvancedDraft(job.job_id);
+      setAdvancedDirty(false);
       updated = await readyForReview(job.job_id, acknowledged);
       setJob(updated);
-      updated = await pollJob(job.job_id, setJob, (current) => current.status === "ready_for_review" || current.status === "failed");
+      updated = await pollJob(job.job_id, setJob, (current) => current.status === "ready_for_review" || current.status === "failed", controller.signal);
+      controller.signal.throwIfAborted();
       if (updated.status === "failed") throw new Error(updated.error ?? "Unable to prepare the exact review artifact.");
-      setAdvancedDirty(false);
       setOutputFilename(defaultOutputFilename(updated.analysis?.filename ?? "production.csv", updated.workflow));
       navigate("review");
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "The configuration is incomplete."); }
-    finally { setBusy(false); }
+    } catch (reason) { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : "The configuration is incomplete."); }
+    finally { if (operationController.current === controller) operationController.current = null; if (!controller.signal.aborted) setBusy(false); }
   };
 
   const finalize = async () => {
     if (!job) return;
+    const controller = new AbortController(); operationController.current = controller;
     setBusy(true); setError("");
     try {
       if (!job.review_token) throw new Error("Prepare the current output for review before finalizing.");
       const updated = await finalizeJob(job.job_id, outputFilename, acknowledged, job.review_token);
+      controller.signal.throwIfAborted();
       setJob(updated);
-      const completed = await pollJob(job.job_id, setJob, (current) => current.status === "complete" || current.status === "failed");
+      const completed = await pollJob(job.job_id, setJob, (current) => current.status === "complete" || current.status === "failed", controller.signal);
+      controller.signal.throwIfAborted();
       if (completed.status === "failed") throw new Error(completed.error ?? "Unable to finalize the output.");
       navigate("download");
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to finalize the output."); }
-    finally { setBusy(false); }
+    } catch (reason) { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : "Unable to finalize the output."); }
+    finally { if (operationController.current === controller) operationController.current = null; if (!controller.signal.aborted) setBusy(false); }
   };
 
   const resetWorkspace = () => {
+    if (job) clearAdvancedDraft(job.job_id);
     setStep("upload");
     setJob(null);
     setSelectedWorkflow(null);
@@ -319,6 +431,8 @@ export function Wizard() {
     setUploadFile(null);
     setUploadSessionActive(false);
     setAdvancedDirty(false);
+    setDraftNotice("");
+    setDraftStorageUnavailable(false);
     setActiveJobId(null);
   };
 
@@ -327,22 +441,38 @@ export function Wizard() {
     if (!jobId || !window.confirm("Cancel this operation and remove its temporary workspace?")) return;
     setError("");
     cancelRequested.current = true;
-    uploadAbortController.current?.abort();
+    operationController.current?.abort();
+    loadController.current?.abort();
     try {
-      await deleteJob(jobId);
-      resetWorkspace();
-      router.replace("/wizard");
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Unable to cancel this operation.");
+      if (await removeJob(jobId, "/wizard")) {
+        resetWorkspace();
+        router.replace("/wizard");
+      }
     } finally {
+      cancelRequested.current = false;
       setBusy(false);
     }
   };
 
   const startAgain = async (goHome: boolean) => {
-    if (job) await deleteJob(job.job_id).catch(() => undefined);
+    operationController.current?.abort();
+    loadController.current?.abort();
+    const destination = goHome ? "/" : "/wizard";
+    if (job && !await removeJob(job.job_id, destination)) return;
     resetWorkspace();
-    router.push(goHome ? "/" : "/wizard");
+    router.push(destination);
+  };
+
+  const retryDeletion = async () => {
+    if (!deletionState) return;
+    setBusy(true);
+    const { jobId, destination } = deletionState;
+    try {
+      if (await removeJob(jobId, destination)) {
+        resetWorkspace();
+        router.push(destination);
+      }
+    } finally { setBusy(false); }
   };
 
   const validationState = validationTone(job?.analysis);
@@ -350,8 +480,10 @@ export function Wizard() {
   const isBlocked = validationState === "blocked";
   const canAdvanceIssues = warningsAcknowledged(job?.analysis, acknowledged);
   const isTextOutput = job?.workflow === "rfp_ranges";
-  const mappingIsReady = effectiveMappingColumns.length > 0 && effectiveMappingColumns.every((column) => {
+  const mappingNames = effectiveMappingColumns.map((column) => column.name.trim().toLocaleLowerCase());
+  const mappingIsReady = effectiveMappingColumns.length > 0 && new Set(mappingNames).size === mappingNames.length && effectiveMappingColumns.every((column) => {
     if (!column.name.trim() || !column.source_fields.length) return false;
+    if (new Set(column.source_fields).size !== column.source_fields.length) return false;
     if (column.transform.kind === "none") return column.source_fields.length === 1;
     if (column.transform.kind === "shorten_bates") return column.source_fields.length === 2;
     return column.transform.kind !== "delimit" || Boolean(column.transform.delimiter);
@@ -377,6 +509,14 @@ export function Wizard() {
           />
           <Stepper active={step} onNavigate={requestNavigation} />
           {error && <ErrorNotice message={error} />}
+          {deletionState && (
+            <Row role="status" fillWidth gap="12" padding="16" radius="m" background="warning-alpha-weak" border="warning-alpha-medium" vertical="center" wrap>
+              <Icon name="warning" onBackground="warning-medium" />
+              <Text variant="body-default-s">{deletionState.message} Job reference: {deletionState.jobId}</Text>
+              <Button variant="secondary" size="s" onClick={() => void retryDeletion()} disabled={busy}>Check or retry deletion</Button>
+            </Row>
+          )}
+          {draftNotice && <Row role="status" fillWidth padding="12" radius="m" background="warning-alpha-weak" border="warning-alpha-medium"><Text variant="body-default-s">{draftNotice}</Text></Row>}
           <div key={step} className="wizard-screen">
             {uploadSessionActive && step === "upload" && (
               <UploadProgress
@@ -492,7 +632,8 @@ export function Wizard() {
                 {advancedDirty && (
                   <Row role="status" fillWidth gap="8" padding="12" radius="m" background="warning-alpha-weak" border="warning-alpha-medium" vertical="center">
                     <Icon name="warning" onBackground="warning-medium" />
-                    <Text variant="body-default-s">Unsaved changes. They are saved when you choose Review output.</Text>
+                    <Text variant="body-default-s">Unsaved changes. They are saved when you choose Review output. This tab will restore your draft after browser navigation.</Text>
+                    <Button variant="secondary" size="s" onClick={discardAdvancedDraft}>Discard draft</Button>
                   </Row>
                 )}
                 <Row fillWidth horizontal="between" className="wizard-actions"><Button variant="secondary" onClick={() => requestNavigation("data")}>Previous</Button><Button variant={hasWarnings ? "warning" : "primary"} onClick={advanceFromAdvanced} disabled={!canAdvanceIssues || (job.workflow === "privilege_log" && !mappingIsReady)} loading={busy}>Review output</Button></Row>
@@ -516,7 +657,7 @@ export function Wizard() {
                   </Row>
                 </Panel>
                 <Panel>
-                  <Row fillWidth horizontal="between" vertical="center"><Heading as="h2" variant="heading-strong-m">Sample output</Heading><Text variant="label-default-s" onBackground="neutral-weak">First five {isTextOutput ? "ranges" : "rows"}</Text></Row>
+                  <Row fillWidth horizontal="between" vertical="center"><Heading as="h2" variant="heading-strong-m">Sample output</Heading><Text variant="label-default-s" onBackground="neutral-weak">{isTextOutput ? "First 5,000 characters" : "First five rows"}</Text></Row>
                   {busy && (
                     <Column gap="8">
                       <ProgressBar value={operationProgress} label />
