@@ -83,4 +83,36 @@ describe("mapping templates", () => {
   it("preserves spaces while a template is renamed", () => {
     expect(updateTemplate(createTemplate("Original", columns), "Two Words").name).toBe("Two Words");
   });
+
+  it.each([
+    { name: "X".repeat(121) },
+    { columns: [{ ...columns[0], source_fields: ["Author", "Author"] }] },
+    { columns: [{ ...columns[0], transform: { kind: "delimit", delimiter: "unsafe" } }] },
+    { columns: [{ ...columns[0], transform: { kind: "none" }, source_fields: ["Author", "From"] }] },
+    { columns: [columns[0], { ...columns[0], id: "another", name: "author" }] },
+  ])("rejects imported templates that the API would reject: %j", (change) => {
+    const malformed = { ...createTemplate("Review", columns), ...change };
+    expect(() => importTemplates(JSON.stringify({ schemaVersion: 1, templates: [malformed] }))).toThrow(/supported schema/i);
+  });
+
+  it("reports unavailable storage without changing the saved list", () => {
+    vi.mocked(window.localStorage.setItem).mockImplementation(() => { throw new DOMException("quota", "QuotaExceededError"); });
+    expect(() => saveTemplates([createTemplate("Review", columns)])).toThrow(/storage is unavailable or full/i);
+  });
+
+  it("rejects oversized imports and malformed template entries", () => {
+    expect(() => importTemplates("x".repeat(256 * 1024 + 1))).toThrow(/256 KB/);
+    expect(() => importTemplates(JSON.stringify({ schemaVersion: 1, templates: [null] }))).toThrow(/supported schema/);
+    const template = createTemplate("Review", columns);
+    expect(() => importTemplates(JSON.stringify({ schemaVersion: 1, templates: [{ ...template, columns: [null] }] })))
+      .toThrow(/supported schema/);
+  });
+
+  it("returns no templates for corrupted browser storage or outside a browser", () => {
+    vi.mocked(window.localStorage.getItem).mockReturnValueOnce("not-json");
+    expect(loadTemplates()).toEqual([]);
+    vi.stubGlobal("window", undefined);
+    try { expect(loadTemplates()).toEqual([]); }
+    finally { vi.unstubAllGlobals(); }
+  });
 });
