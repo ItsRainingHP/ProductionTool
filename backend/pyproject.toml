@@ -11,11 +11,11 @@ check_untyped_defs = true
 ignore_missing_imports = true
 warn_redundant_casts = true
 warn_unused_ignores = true
-disable_error_code = ["arg-type", "assignment", "union-attr"]
 
 [tool.coverage.run]
 source = ["app"]
 
 [tool.coverage.report]
-fail_under = 85
+fail_under = 98
+precision = 2
 show_missing = true

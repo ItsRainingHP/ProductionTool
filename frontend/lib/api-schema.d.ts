@@ -336,11 +336,6 @@ export interface components {
             /** Personal Data Findings */
             personal_data_findings?: components["schemas"]["PersonalDataFinding"][];
         };
-        /** Body_upload_source_api_v1_jobs__job_id__source_put */
-        Body_upload_source_api_v1_jobs__job_id__source_put: {
-            /** File */
-            file: string;
-        };
         /** Capabilities */
         Capabilities: {
             /** Max Upload Bytes */
@@ -720,7 +715,10 @@ export interface operations {
     upload_source_api_v1_jobs__job_id__source_put: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description URL-encoded CSV filename; required for a raw text/csv upload. */
+                "X-File-Name": string;
+            };
             path: {
                 job_id: string;
             };
@@ -728,7 +726,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "multipart/form-data": components["schemas"]["Body_upload_source_api_v1_jobs__job_id__source_put"];
+                "text/csv": string;
             };
         };
         responses: {

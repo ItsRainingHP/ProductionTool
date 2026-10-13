@@ -23,6 +23,8 @@ Copy this checklist into the controlled release record. A repository copy with u
 - [ ] Production-container browser workflows passed.
 - [ ] Runtime capabilities and security headers matched the approved configuration.
 - [ ] Container ran as non-root with read-only root, dropped capabilities, `no-new-privileges`, bounded temporary storage, and a dedicated writable data volume.
+- [ ] The deployed image was pulled by its approved registry digest; the runtime `IMAGE_DIGEST`, synthetic receipt `image_digest`, and dossier digest match exactly. Startup without a valid digest was rejected.
+- [ ] The application was alone on a dedicated private bridge with only a host-loopback publication; default-bridge and unauthorized network peers could not reach its container address, and host egress policy was verified.
 - [ ] High/critical fixed vulnerabilities are absent or an exception is attached with owner and expiry.
 - [ ] SPDX SBOM and third-party license summary are present, parseable, reviewed, and hashed.
 - [ ] Base-image references match the verified digests in `deploy/release-metadata.json`.
@@ -39,6 +41,8 @@ Copy this checklist into the controlled release record. A repository copy with u
 - [ ] Recovery/rollback exercise passed within approved objectives.
 - [ ] Incident contacts and escalation routes are current.
 - [ ] [QUALIFICATION_500MB.md](QUALIFICATION_500MB.md) passed for the target environment or a dated, approved applicability exception is attached.
+- [ ] Managed-browser accessibility checks and approved concurrency tests passed in the target environment.
+- [ ] Every P1 audit finding is fixed and passed its acceptance test; each remaining P2 finding is fixed or has a dated disposition signed by the release approver.
 
 ## Approval
 
