@@ -34,7 +34,7 @@ jobs:
       - name: Check out source
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
           cache: pip
@@ -130,7 +130,7 @@ jobs:
           test "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.licenses"}}' "$IMAGE_TAG")" = "MIT"
           docker image inspect "$IMAGE_TAG" > production-tool-image-inspect.json
       - name: Create container SBOM
-        uses: anchore/sbom-action@fbfd9c6c189226748411491745178e0c2017392d # v0.20.10
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
           image: ${{ env.IMAGE_TAG }}
           artifact-name: production-tool.spdx.json
@@ -150,7 +150,7 @@ jobs:
           ' production-tool.spdx.json > third-party-licenses.tsv
           test -s third-party-licenses.tsv
       - name: Scan production image
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # 0.36.0
         with:
           image-ref: ${{ env.IMAGE_TAG }}
           format: table
@@ -246,7 +246,7 @@ jobs:
             > release-artifact-checksums.sha256 2>/dev/null || true
       - name: Upload release evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-evidence-${{ needs.release-metadata.outputs.version }}-${{ github.sha }}
           path: |
