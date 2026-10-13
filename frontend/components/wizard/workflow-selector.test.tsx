@@ -45,4 +45,20 @@ describe("WorkflowSelector", () => {
 
     expect(onChange).toHaveBeenCalledWith("privilege_log");
   });
+
+  it("supports Home, End, Enter, Space and pointer selection", () => {
+    const onChange = vi.fn();
+    render(<Providers><WorkflowSelector value={null} onChange={onChange} /></Providers>);
+    const rfp = screen.getByRole("radio", { name: /RFP \/ Pleading Ranges/ });
+    const privilege = screen.getByRole("radio", { name: /Privilege Log/ });
+    fireEvent.keyDown(rfp, { key: "End" });
+    fireEvent.keyDown(privilege, { key: "Home" });
+    fireEvent.keyDown(privilege, { key: "Tab" });
+    fireEvent.keyDown(rfp, { key: "Enter" });
+    fireEvent.keyDown(privilege, { key: " " });
+    fireEvent.click(privilege);
+    expect(onChange.mock.calls.map(([value]) => value)).toEqual([
+      "privilege_log", "rfp_ranges", "rfp_ranges", "privilege_log", "privilege_log", "privilege_log",
+    ]);
+  });
 });
