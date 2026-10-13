@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import json
 import logging
@@ -17,12 +18,12 @@ import threading
 import time
 import uuid
 from collections import deque
-from collections.abc import Iterator
+from collections.abc import AsyncIterable, Iterator
 from contextlib import contextmanager, suppress
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from fastapi import HTTPException, UploadFile
+from fastapi import HTTPException
 
 from .evidence import build_evidence_package
 from .models import (
@@ -67,6 +68,9 @@ class JobStore:
         default_root = Path(__file__).resolve().parents[2] / "data" / "jobs"
         self.root = Path(os.getenv("JOB_DATA_DIR", str(default_root)))
         self.root.mkdir(parents=True, exist_ok=True)
+        self.sqlite_temp = self.root / ".sqlite-tmp"
+        self.sqlite_temp.mkdir(mode=0o700, exist_ok=True)
+        os.environ["SQLITE_TMPDIR"] = str(self.sqlite_temp)
         self.max_bytes = int(os.getenv("MAX_UPLOAD_BYTES", str(500 * 1024 * 1024)))
         self.ttl_seconds = int(os.getenv("JOB_TTL_SECONDS", str(4 * 60 * 60)))
         self.ttl = timedelta(seconds=self.ttl_seconds)
@@ -151,6 +155,7 @@ class JobStore:
     def _reconcile_startup(self) -> None:
         """Repair interrupted local operations without disturbing another instance's live lease."""
         now = time.time()
+        live_lease_present = False
         with self._lock, self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             rows = connection.execute(
@@ -158,12 +163,17 @@ class JobStore:
             ).fetchall()
             for row in rows:
                 live_lease = bool(row["lease_until"] and row["lease_until"] > now)
+                live_lease_present = live_lease_present or live_lease
                 if row["delete_requested"] or live_lease:
                     continue
                 directory = self._directory(row["job_id"], require_exists=False)
                 for partial in directory.glob("*.partial") if directory.is_dir() else ():
                     with suppress(OSError):
                         partial.unlink()
+                scratch = directory / "scratch"
+                if scratch.is_dir():
+                    with suppress(OSError):
+                        shutil.rmtree(scratch)
                 try:
                     job = JobView.model_validate_json(row["payload"])
                 except ValueError:
@@ -181,6 +191,11 @@ class JobStore:
                         "last_heartbeat=NULL,reserved_bytes=0 WHERE job_id=?",
                         (row["job_id"],),
                     )
+        if not live_lease_present:
+            for temporary in self.sqlite_temp.iterdir():
+                if temporary.is_file():
+                    with suppress(OSError):
+                        temporary.unlink()
 
     def _repair_taskless_active_locked(self, job: JobView, task: str | None, connection: sqlite3.Connection) -> None:
         if task is not None:
@@ -329,9 +344,11 @@ class JobStore:
         }:
             job.cancel_requested = True
             connection.execute("UPDATE jobs SET cancel_requested=1,delete_requested=1 WHERE job_id=?", (job_id,))
+            connection.commit()
             raise HTTPException(410, "Job expired and cancellation was requested")
         if datetime.fromisoformat(job.expires_at) <= datetime.now(UTC):
             self._delete_locked(job_id, connection)
+            connection.commit()
             raise HTTPException(410, "Job expired")
         return job
 
@@ -492,8 +509,8 @@ class JobStore:
         with self._lock, self._connect() as connection:
             return self._load_locked(job_id, connection)
 
-    async def upload(self, job_id: str, upload: UploadFile) -> JobView:
-        raw_filename = (upload.filename or "").strip()
+    async def upload(self, job_id: str, raw_filename: str, content_type: str, chunks: AsyncIterable[bytes]) -> JobView:
+        raw_filename = raw_filename.strip()
         filename = Path(raw_filename.replace("\\", "/")).name
         if (
             not filename
@@ -503,7 +520,7 @@ class JobStore:
             or Path(filename).suffix.casefold() != ".csv"
         ):
             raise HTTPException(415, "Only CSV files are accepted")
-        content_type = (upload.content_type or "").split(";", 1)[0].strip().casefold()
+        content_type = content_type.split(";", 1)[0].strip().casefold()
         if content_type not in ALLOWED_CSV_CONTENT_TYPES:
             raise HTTPException(415, "The uploaded file does not have a supported CSV content type")
         with self._lock, self._connect() as connection:
@@ -523,7 +540,9 @@ class JobStore:
         upload_digest = hashlib.sha256()
         try:
             with self._lease_heartbeat(job_id, lease_token), temporary.open("wb") as handle:
-                while chunk := await upload.read(1024 * 1024):
+                async for chunk in chunks:
+                    if not chunk:
+                        continue
                     total += len(chunk)
                     upload_digest.update(chunk)
                     if total > self.max_bytes:
@@ -568,9 +587,6 @@ class JobStore:
                 except HTTPException:
                     pass
             raise
-        finally:
-            await upload.close()
-
     def source_path(self, job_id: str) -> Path:
         path = self._directory(job_id) / "source.csv"
         if not path.exists():
@@ -809,8 +825,12 @@ class JobStore:
             job.progress = JobProgress(
                 phase="Analyzing CSV", percent=35, bytes_processed=self.source_path(job_id).stat().st_size
             )
+            self._set_reservation_locked(job_id, self.max_work_bytes, connection)
             self._save_locked(job, connection)
-        analysis = analyze_csv(self.source_path(job_id), filename)
+        analysis = analyze_csv(
+            self.source_path(job_id), filename,
+            scratch_dir=self._directory(job_id) / "scratch", max_work_bytes=self.max_work_bytes,
+        )
         if self._cancelled(job_id):
             self._delete_job(job_id)
             return
@@ -832,6 +852,7 @@ class JobStore:
                 bytes_processed=analysis.size_bytes,
                 rows_processed=analysis.row_count,
             )
+            self._set_reservation_locked(job_id, 0, connection)
             self._save_locked(job, connection, preserve_task=False)
         log_event("job_analysis_finished", job_id=job_id, status=job.status.value)
 
@@ -863,6 +884,7 @@ class JobStore:
             len(payload["acknowledged"]),
             job.pleading_settings,
             self.max_work_bytes,
+            scratch_dir=self._directory(job_id) / "scratch",
         )
         if self._cancelled(job_id):
             temporary.unlink(missing_ok=True)
@@ -992,12 +1014,17 @@ class JobStore:
             except HTTPException:
                 return
             job.status = JobStatus.failed
-            job.error = "Processing could not be completed. You may retry with a new job."
-            job.error_code = (
-                "resource_limit_exceeded"
-                if isinstance(error, (ResourceLimitError, ProcessingLimitError))
-                else "processing_failed"
+            capacity_error = (
+                isinstance(error, (ResourceLimitError, ProcessingLimitError))
+                or isinstance(error, OSError) and error.errno == errno.ENOSPC
+                or isinstance(error, sqlite3.DatabaseError) and "full" in str(error).casefold()
             )
+            job.error = (
+                "Job storage is full or the processing limit was reached. "
+                "Remove older jobs or contact the service operator."
+                if capacity_error else "Processing could not be completed. You may retry with a new job."
+            )
+            job.error_code = "resource_limit_exceeded" if capacity_error else "processing_failed"
             for path in self._directory(job_id).glob("*.partial"):
                 path.unlink(missing_ok=True)
             self._set_reservation_locked(job_id, 0, connection)

@@ -34,7 +34,29 @@ test("home page starts processing", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Upload CSV data" })).toBeVisible();
 });
 
-test("pleading wizard produces the expected text download", async ({ page }) => {
+test("production route accepts a CSV larger than Next's former 10 MB limit", async ({ request }) => {
+  test.setTimeout(120_000);
+  const created = await request.post("/api/v1/jobs");
+  expect(created.status()).toBe(201);
+  const { job_id: jobId } = await created.json();
+  const csv = Buffer.from(
+    'Begin Bates,End Bates,Tag: RFP 01,Notes\nABC0001,ABC0002,TRUE,"'
+    + "x".repeat(11 * 1024 * 1024) + '"\n',
+  );
+  const uploaded = await request.put(`/api/v1/jobs/${jobId}/source`, {
+    data: csv,
+    headers: { "Content-Type": "text/csv", "X-File-Name": "large.csv" },
+    timeout: 60_000,
+  });
+  expect(uploaded.status()).toBe(202);
+  await expect.poll(async () => {
+    const result = await request.get(`/api/v1/jobs/${jobId}`);
+    return (await result.json()).status;
+  }, { timeout: 90_000 }).toBe("needs_configuration");
+  await request.delete(`/api/v1/jobs/${jobId}`);
+});
+
+test("pleading wizard produces the expected text download and receipt identity", async ({ page, request }) => {
   await upload(page, "reference-sanitized/logikcull/pleading/valid/lc_reference_pleading_001.csv");
   await expect(page.getByRole("heading", { name: "Choose the output" })).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
@@ -46,6 +68,31 @@ test("pleading wizard produces the expected text download", async ({ page }) => 
   const text = await downloadText(page, /Download text file/);
   expect(text).toContain("RFP 01\r\n");
   expect(text).toContain("SYNREFLCPLD001-0000001, SYNREFLCPLD001-0000005-0006");
+  const jobId = new URL(page.url()).pathname.split("/")[2];
+  const receiptResponse = await request.get(`/api/v1/jobs/${jobId}/receipt.json`);
+  expect(receiptResponse.status()).toBe(200);
+  const receipt = await receiptResponse.json();
+  expect(receipt.image_digest).toMatch(/^sha256:[0-9a-f]{64}$/);
+  if (process.env.EXPECTED_IMAGE_DIGEST) {
+    expect(receipt.image_digest).toBe(process.env.EXPECTED_IMAGE_DIGEST);
+  }
+});
+
+test("Advanced draft survives browser Back, Forward, and refresh in one tab", async ({ page }) => {
+  await upload(page, "reference-sanitized/logikcull/pleading/valid/lc_reference_pleading_001.csv");
+  await expect(page.getByRole("heading", { name: "Choose the output" })).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("heading", { name: "Inspect pleading ranges" })).toBeVisible();
+  await page.getByRole("button", { name: "Semicolon" }).click();
+  await expect(page.getByRole("button", { name: "Semicolon" })).toHaveAttribute("aria-pressed", "true");
+  await page.goBack();
+  await expect(page.getByRole("heading", { name: "Choose the output" })).toBeVisible();
+  await page.goForward();
+  await expect(page.getByRole("button", { name: "Semicolon" })).toHaveAttribute("aria-pressed", "true");
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Semicolon" })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Discard draft" }).click();
+  await expect(page.getByRole("button", { name: "Comma" })).toHaveAttribute("aria-pressed", "true");
 });
 
 test("privilege wizard produces a spreadsheet-safe CSV", async ({ page }) => {

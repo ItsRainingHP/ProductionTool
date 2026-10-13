@@ -16,7 +16,7 @@ Use this procedure for every real-data job. The operator and reviewer must be di
 3. Verify detected platform, workflow, row and column counts, Bates headers, prefixes, gaps, duplicates, warnings, and personal-data advisories against the intake record.
 4. Treat personal-data detection as advisory only. It is not privacy, privilege, redaction, or disclosure clearance.
 5. Configure the workflow and mapping. For every warning, record the business reason for proceeding and its expected effect; do not merely check the acknowledgement box.
-6. Review the preview, but do not treat the first five rows or ranges as full-file verification.
+6. Review the preview, but do not treat the first five privilege rows or the first 5,000 characters of RFP output as full-file verification.
 7. Finalize once and download the output plus the JSON receipt. Retain the text receipt only when the matter procedure calls for a human-readable copy.
 8. Calculate the downloaded output SHA-256 and compare it with the JSON receipt. Record the comparison result.
 

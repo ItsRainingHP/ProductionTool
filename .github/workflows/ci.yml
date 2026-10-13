@@ -54,7 +54,7 @@ jobs:
         run: python -m mypy app
       - name: Run backend tests
         working-directory: backend
-        run: python -m pytest --cov=app --cov-report=term-missing --cov-fail-under=85
+        run: python -m pytest --cov=app --cov-report=term-missing --cov-fail-under=98
 
   frontend:
     runs-on: ubuntu-latest
@@ -85,7 +85,9 @@ jobs:
         run: npm run check:unused
       - name: Run frontend tests
         working-directory: frontend
-        run: npm run test
+        run: npm run test:coverage
+      - name: Test streaming container proxy
+        run: node --test deploy/http-proxy.test.cjs
       - name: Build production frontend
         working-directory: frontend
         run: npm run build
@@ -159,12 +161,17 @@ jobs:
         shell: bash
         run: |
           docker volume create production-tool-ci-data
+          docker network create production-tool-ci-private
+          image_digest="$(docker image inspect --format '{{.Id}}' "$IMAGE_TAG")"
+          echo "EXPECTED_IMAGE_DIGEST=$image_digest" >> "$GITHUB_ENV"
           docker run --detach --name production-tool-ci \
+            --network production-tool-ci-private \
             --read-only \
             --tmpfs /tmp:rw,noexec,nosuid,size=64m \
             --cap-drop ALL \
             --security-opt no-new-privileges:true \
             --mount source=production-tool-ci-data,target=/data \
+            --env IMAGE_DIGEST="$image_digest" \
             --publish 127.0.0.1:3000:3000 \
             "$IMAGE_TAG"
       - name: Wait for application health
@@ -196,7 +203,19 @@ jobs:
           docker inspect --format '{{json .HostConfig.CapDrop}}' production-tool-ci | grep -q 'ALL'
           docker inspect --format '{{json .HostConfig.SecurityOpt}}' production-tool-ci | grep -q 'no-new-privileges:true'
           test "$(docker port production-tool-ci 3000/tcp)" = "127.0.0.1:3000"
+          test "$(docker inspect --format '{{.HostConfig.NetworkMode}}' production-tool-ci)" = "production-tool-ci-private"
+          test "$(docker network inspect --format '{{len .Containers}}' production-tool-ci-private)" = "1"
           docker inspect production-tool-ci > production-tool-runtime-inspect.json
+      - name: Deny default-bridge bypass
+        shell: bash
+        run: |
+          app_ip="$(docker inspect --format '{{(index .NetworkSettings.Networks "production-tool-ci-private").IPAddress}}' production-tool-ci)"
+          test -n "$app_ip"
+          if docker run --rm --network bridge --entrypoint curl "$IMAGE_TAG" \
+            --fail --silent --max-time 3 "http://$app_ip:3000/api/healthz"; then
+            echo "Default-bridge peer reached the application directly" >&2
+            exit 1
+          fi
       - name: Run production browser smoke tests
         working-directory: frontend
         env:
