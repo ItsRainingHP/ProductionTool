@@ -16,23 +16,33 @@ function normalizeTemplate(value: unknown): MappingTemplate | null {
     && typeof item.id === "string"
     && typeof item.name === "string"
     && item.name.trim().length > 0
+    && item.name.length <= 120
     && Array.isArray(item.columns)
     && item.columns.length > 0
     && item.columns.length <= 100
+    && new Set(item.columns.map((column) => typeof column?.name === "string" ? column.name.trim().toLocaleLowerCase() : "")).size === item.columns.length
     && item.columns.every((column) => {
       if (!column || typeof column !== "object") return false;
       const candidate = column as Partial<ImportedOutputColumn>;
       return typeof candidate.id === "string"
+        && candidate.id.length > 0
+        && candidate.id.length <= 120
         && typeof candidate.name === "string"
         && candidate.name.trim().length > 0
+        && candidate.name.length <= 120
         && !/[\u0000-\u001f\u007f]/.test(candidate.name)
         && Array.isArray(candidate.source_fields)
         && candidate.source_fields.length > 0
+        && candidate.source_fields.length <= 100
         && candidate.source_fields.every((field) => typeof field === "string" && field.length > 0)
+        && new Set(candidate.source_fields).size === candidate.source_fields.length
         && typeof candidate.normalize === "boolean"
         && !!candidate.transform
         && ["none", "shorten_bates", "delimit", "fill", "concatenate"].includes(candidate.transform.kind)
-        && (candidate.transform.delimiter == null || typeof candidate.transform.delimiter === "string");
+        && (candidate.transform.delimiter == null || ["; ", ", ", " | ", "\n"].includes(candidate.transform.delimiter))
+        && (candidate.transform.kind !== "none" || candidate.source_fields.length === 1)
+        && (candidate.transform.kind !== "shorten_bates" || candidate.source_fields.length === 2)
+        && (candidate.transform.kind !== "delimit" || Boolean(candidate.transform.delimiter));
     });
   if (!valid) return null;
   return {
@@ -62,7 +72,11 @@ export function loadTemplates(): MappingTemplate[] {
 }
 
 export function saveTemplates(templates: MappingTemplate[]): void {
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(templates));
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(templates));
+  } catch {
+    throw new Error("Browser storage is unavailable or full. Export your templates and free storage before saving.");
+  }
 }
 
 export function createTemplate(name: string, columns: OutputColumn[]): MappingTemplate {
