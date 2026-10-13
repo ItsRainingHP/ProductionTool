@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 
 import pytest
@@ -20,6 +21,7 @@ from app.processor import (
     escape_formula,
     iter_privilege_output_rows,
     normalize_contact_value,
+    personal_data_matches,
     render_rfp_text,
     rfp_output_rows,
     shorten_bates,
@@ -110,7 +112,7 @@ def test_platform_confidence_for_unreadable_and_fatal_files(tmp_path: Path) -> N
     invalid_utf8 = tmp_path / "invalid.csv"
     invalid_utf8.write_bytes(b"Bates/Control #,End Bates/Control #\n\xff")
     invalid_analysis = analyze_csv(invalid_utf8, invalid_utf8.name)
-    assert (invalid_analysis.platform, invalid_analysis.platform_confidence) == ("unknown", 0)
+    assert (invalid_analysis.platform, invalid_analysis.platform_confidence) == ("logikcull", 80)
 
     malformed = tmp_path / "malformed.csv"
     malformed.write_text('Bates/Control #,End Bates/Control #\n"TEST_0001,TEST_0002\n', encoding="utf-8")
@@ -502,6 +504,78 @@ def test_privilege_output_reconciles_skips_and_header_formula_escapes(tmp_path: 
     assert preview.headers == ["'=Header"]
     assert preview.skipped_rows == 1
     assert preview.formula_escapes == 1
+
+
+def test_rog_tags_and_multiple_combined_requests_reach_output(tmp_path: Path) -> None:
+    separate = tmp_path / "separate.csv"
+    separate.write_text(
+        "Begin Bates,End Bates,Tag: RFP 01,Tag: ROG 02\n"
+        "ABC0001,ABC0002,TRUE,TRUE\nABC0003,ABC0003,,TRUE\n", encoding="utf-8"
+    )
+    analysis = analyze_csv(separate, separate.name)
+    _, rows, skipped = rfp_output_rows(separate, analysis)
+    assert analysis.request_count == 2
+    assert [(row[0], row[1], row[2]) for row in rows] == [
+        ("RFP 01", "ABC0001", "ABC0002"), ("ROG 02", "ABC0001", "ABC0003")
+    ]
+    assert skipped == 0
+
+    combined = tmp_path / "combined.csv"
+    combined.write_text(
+        'Begin Bates,End Bates,RFP\nABC0001,ABC0002,"RFP 01; RFP 03, ROG 02; free text"\n',
+        encoding="utf-8",
+    )
+    analysis = analyze_csv(combined, combined.name)
+    _, rows, _ = rfp_output_rows(combined, analysis)
+    assert analysis.request_count == 3
+    assert {row[0] for row in rows} == {"RFP 01", "RFP 03", "ROG 02; free text"}
+
+
+def test_rfp_receipt_counts_excluded_uneven_rows(tmp_path: Path) -> None:
+    source = tmp_path / "uneven-rfp.csv"
+    source.write_text(
+        "Begin Bates,End Bates,Tag: RFP 01\nABC0001,ABC0002,TRUE\nABC0005,ABC0006,TRUE,\n",
+        encoding="utf-8",
+    )
+    analysis = analyze_csv(source, source.name)
+    warning = next(issue for issue in analysis.issues if issue.code == "uneven_row_width")
+    assert "excluded" in warning.message
+    preview = build_preview(source, analysis, "rfp_ranges", None)
+    stats = write_output(tmp_path / "output.txt", source, analysis, "rfp_ranges", None, 1)
+    assert preview.skipped_rows == stats.skipped_rows == 1
+    assert stats.input_rows == 2
+
+
+def test_large_valid_cell_cp1252_and_prefixless_bates(tmp_path: Path) -> None:
+    source = tmp_path / "excel.csv"
+    source.write_bytes(
+        ("Begin Bates,End Bates,Tag: RFP 01,Subject\n"
+         '000001,000002,TRUE,"Client’s memo ' + "x" * 140_000 + '"\n').encode("cp1252")
+    )
+    analysis = analyze_csv(source, source.name)
+    assert not analysis.issues
+    _, rows, skipped = rfp_output_rows(source, analysis)
+    assert rows[0][0] == "RFP 01"
+    assert rows[0][1] == "000001"
+    assert skipped == 0
+    assert shorten_bates("000001", "000002") == "000001-0002"
+
+
+def test_oversized_cell_has_specific_issue(tmp_path: Path) -> None:
+    source = tmp_path / "oversized-field.csv"
+    source.write_text(
+        "Begin Bates,End Bates,Tag: RFP 01,Notes\nABC0001,ABC0002,TRUE,\""
+        + "x" * (16 * 1024 * 1024 + 1) + "\"\n", encoding="utf-8"
+    )
+    codes = {issue.code for issue in analyze_csv(source, source.name).issues}
+    assert "field_too_large" in codes
+    assert "broken_quote" not in codes
+
+
+def test_personal_data_email_scan_is_bounded_on_hostile_cell() -> None:
+    started = time.perf_counter()
+    assert personal_data_matches("Email To", "a!" * 65_536) == {}
+    assert time.perf_counter() - started < 2
 
 
 def test_preview_discloses_display_truncation(tmp_path: Path) -> None:

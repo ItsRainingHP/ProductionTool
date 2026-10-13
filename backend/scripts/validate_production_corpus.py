@@ -15,6 +15,7 @@ import tempfile
 import time
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 from fastapi.testclient import TestClient
 
@@ -93,7 +94,8 @@ def exercise_fixture(client: TestClient, fixture: dict[str, Any]) -> dict[str, A
         with source.open("rb") as handle:
             uploaded = client.put(
                 f"/api/v1/jobs/{job_id}/source",
-                files={"file": (source.name, handle, "text/csv")},
+                content=handle.read(),
+                headers={"Content-Type": "text/csv", "X-File-Name": quote(source.name)},
             )
         uploaded.raise_for_status()
         job = wait_for_job(client, job_id, {"needs_configuration", "failed"})
