@@ -14,7 +14,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
 FROM python:3.14-slim-bookworm@sha256:82bc3c539b8813ada9d68c63b40158fa002f7f33de9bf3312a3dfdc0620dff56 AS runtime
-ARG RELEASE_VERSION=2.0.0
+ARG RELEASE_VERSION=2.0.1
 ARG VCS_REF=unversioned
 ARG BUILD_DATE=unknown
 LABEL org.opencontainers.image.title="Production Tool" \

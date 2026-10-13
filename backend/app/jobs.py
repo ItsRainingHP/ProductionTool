@@ -827,16 +827,24 @@ class JobStore:
             )
             self._set_reservation_locked(job_id, self.max_work_bytes, connection)
             self._save_locked(job, connection)
-        analysis = analyze_csv(
-            self.source_path(job_id), filename,
-            scratch_dir=self._directory(job_id) / "scratch", max_work_bytes=self.max_work_bytes,
-        )
+        scratch_root = self._directory(job_id) / "scratch"
+        attempt_scratch = scratch_root / f"analysis-{lease_token}"
+        try:
+            analysis = analyze_csv(
+                self.source_path(job_id), filename,
+                scratch_dir=attempt_scratch, max_work_bytes=self.max_work_bytes,
+            )
+        finally:
+            with suppress(OSError):
+                shutil.rmtree(attempt_scratch)
         if self._cancelled(job_id):
             self._delete_job(job_id)
             return
         with self._lock, self._connect() as connection:
             if not self._lease_owned_locked(job_id, lease_token, connection):
                 return
+            with suppress(OSError):
+                shutil.rmtree(scratch_root)
             job = self._load_locked(job_id, connection)
             job.analysis = analysis
             job.workflow = None

@@ -11,8 +11,8 @@ import { defaultOutputFilename, formatBytes, platformConfidenceLabel, platformCo
 describe("formatBytes", () => {
   it("formats upload and output sizes", () => {
     expect(formatBytes(0)).toBe("0 B");
-    expect(formatBytes(1024)).toBe("1.00 KB");
-    expect(formatBytes(500 * 1024 * 1024)).toBe("500.0 MB");
+    expect(formatBytes(1024)).toBe("1.00 KiB");
+    expect(formatBytes(500 * 1024 * 1024)).toBe("500.0 MiB");
   });
 });
 

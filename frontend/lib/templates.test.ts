@@ -101,7 +101,7 @@ describe("mapping templates", () => {
   });
 
   it("rejects oversized imports and malformed template entries", () => {
-    expect(() => importTemplates("x".repeat(256 * 1024 + 1))).toThrow(/256 KB/);
+    expect(() => importTemplates("x".repeat(256 * 1024 + 1))).toThrow(/256 KiB/);
     expect(() => importTemplates(JSON.stringify({ schemaVersion: 1, templates: [null] }))).toThrow(/supported schema/);
     const template = createTemplate("Review", columns);
     expect(() => importTemplates(JSON.stringify({ schemaVersion: 1, templates: [{ ...template, columns: [null] }] })))

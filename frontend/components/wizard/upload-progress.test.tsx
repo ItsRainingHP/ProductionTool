@@ -46,7 +46,7 @@ describe("UploadProgress", () => {
     expect(screen.getByRole("heading", { name: "Uploading CSV data" })).toBeInTheDocument();
     expect(screen.getByText("large-production.csv")).toBeInTheDocument();
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "42");
-    expect(screen.getByRole("status")).toHaveTextContent("210.0 MB of 500.0 MB transferred");
+    expect(screen.getByRole("status")).toHaveTextContent("210.0 MiB of 500.0 MiB transferred");
   });
 
   it("explains that Step 2 opens after server analysis", () => {

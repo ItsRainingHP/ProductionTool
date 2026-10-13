@@ -12,16 +12,14 @@ Include a concise description, affected component, impact, reproduction steps us
 
 ## Deployment boundary
 
-Production Tool assumes a trusted private network and intentionally has no application-level authentication. Deploy it behind a TLS-terminating reverse proxy and organization-approved network or identity access. Do not expose the application directly to the public Internet. Protect and encrypt the persistent job volume because it contains uploaded source material, generated work product, receipts, and a local SQLite job catalog until automatic expiry or explicit deletion.
+Production Tool assumes a trusted private network and has no application-level authentication. Do not expose it directly to the public Internet. Shared deployments need an HTTPS gateway with access control. Protect the persistent job volume because it contains uploaded source material, generated work product, receipts, and a local SQLite job catalog until automatic expiry or explicit deletion.
 
-The gateway must default-deny every network except the restricted private-network allowlist and retain immutable source-network/action/job/outcome audit events with a request correlation ID, without request or response bodies. The tool intentionally does not require accounts or identity headers. Publish the container only on loopback or an isolated network; the frontend must not be reachable through a gateway bypass.
+The application does not identify individual users or provide a gateway audit trail. Configure access restrictions, audit logging, TLS, and retention in the environment where it runs. Avoid logging CSV contents or other confidential data. Publishing only on host loopback does not necessarily block other Docker bridge containers from reaching the container IP; restrict that direct route in shared deployments.
 
-The runtime must use the approved image digest, encrypted storage, a non-root user, dropped capabilities, `no-new-privileges`, a read-only root filesystem, bounded temporary storage, and a dedicated writable job volume. Malware or trusted-export screening, endpoint protection, DLP, backups, legal hold, and permanent evidence retention are external organizational controls.
-
-Full deployment and evidence requirements are in [deploy/OPERATIONS.md](deploy/OPERATIONS.md) and [deploy/RELEASE_DOSSIER.md](deploy/RELEASE_DOSSIER.md).
+The image runs as a non-root user; CI also tests a read-only root filesystem, dropped capabilities, `no-new-privileges`, bounded temporary storage, and a writable job volume. These settings, encrypted storage, malware screening, backups, and permanent evidence retention must be configured or provided by the deployment environment.
 
 ## Security and data incidents
 
 GitHub private vulnerability reporting is for product vulnerabilities only. Do not place confidential matter facts or client data in repository issues.
 
-Suspected unauthorized access, disclosure, wrong-recipient download, checksum mismatch, malicious input, failed deletion, public exposure, or incorrect output already used in legal work must follow the organization's confidential incident channel and [deploy/INCIDENT_RESPONSE.md](deploy/INCIDENT_RESPONSE.md). Stop automatic processing/expiry when preservation is required, preserve logs and encrypted evidence under assigned incident leadership, and do not delete affected jobs before the responsible security, records/privacy, and legal owners decide disposition.
+Report suspected unauthorized access, disclosure, checksum mismatch, failed deletion, public exposure, or incorrect output through the organization's confidential incident channel. If evidence may need preservation, account for the application's automatic job expiry before deleting or restarting data storage.

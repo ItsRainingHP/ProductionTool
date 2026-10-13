@@ -40,7 +40,7 @@ Upload clients must send the CSV bytes as a raw `PUT /api/v1/jobs/{job_id}/sourc
 Uploaded sources, generated outputs, receipts, and the SQLite job catalog are stored in `JOB_DATA_DIR`. They are ephemeral unless that directory is backed by a persistent volume. Jobs survive an application restart when that volume survives, and expired job directories are removed automatically.
 RFP processing scratch and SQLite disk-based temporary files also use the job volume, so capacity monitoring must include them.
 
-The canonical application version is stored in `VERSION`; `deploy/release-metadata.json` records the API/receipt schemas and digest-pinned base images. A deployable release is not approved until [deploy/RELEASE_DOSSIER.md](deploy/RELEASE_DOSSIER.md) is completed with an immutable image digest and named approvers.
+The canonical application version is stored in `VERSION`; `deploy/release-metadata.json` records the API/receipt schemas and digest-pinned base images. CI checks this metadata and tests the production container before publishing an image.
 
 ## Requirements
 
@@ -54,7 +54,7 @@ $localImageDigest = docker image inspect --format '{{.Id}}' production-tool
 docker run --rm --name production-tool -e IMAGE_DIGEST=$localImageDigest -p 127.0.0.1:3000:3000 production-tool
 ```
 
-Open `http://localhost:3000`. This loopback-only command is for local evaluation. It is not an approved shared or real-data deployment.
+Open `http://localhost:3000`. This loopback-only command is for local evaluation; it does not configure access control, TLS, or encrypted job storage.
 
 To retain active job data across a container restart while preserving automatic expiry:
 
@@ -63,7 +63,7 @@ $localImageDigest = docker image inspect --format '{{.Id}}' production-tool
 docker run --rm --name production-tool -e IMAGE_DIGEST=$localImageDigest -p 127.0.0.1:3000:3000 -v production-tool-data:/data production-tool
 ```
 
-For shared use, follow [deploy/OPERATIONS.md](deploy/OPERATIONS.md). The account-free application must remain behind an organization-managed TLS gateway and restricted private-network allowlist with immutable request audit logging.
+For shared use, put the account-free application behind an HTTPS gateway with appropriate access control. Restrict direct access to the container IP as well: publishing only to host loopback does not necessarily block other Docker bridge containers. Restrict and encrypt the job volume, and configure the gateway's request-body limit for the intended CSV size. Gateway audit logging and data-retention policy are deployment responsibilities; the application does not identify individual users.
 
 ### Publish to Docker Hub
 
@@ -72,7 +72,7 @@ The CI workflow calls `.github/workflows/docker-publish.yml` only after the back
 - `DOCKER_USERNAME` — the Docker Hub account or organization that owns the image.
 - `DOCKER_PASSWORD` — a Docker Hub personal access token with read/write permission.
 
-Create a Docker Hub repository named `production-tool` in that namespace before the first run and select the approved visibility. Images are published to `docker.io/<docker-username>/production-tool`. A push to `main` publishes `main`, `latest`, and `sha-<full-commit>` tags. A tag such as `v2.0.0` must match `VERSION`; it publishes `2.0.0`, `latest`, and the commit tag. The workflow summary records the resulting OCI digest.
+Create a Docker Hub repository named `production-tool` in that namespace before the first run and select the approved visibility. Images are published to `docker.io/<docker-username>/production-tool`. A push to `main` publishes `main`, `latest`, and `sha-<full-commit>` tags. A tag such as `v2.0.1` must match `VERSION`; it publishes `2.0.1`, `latest`, and the commit tag. The workflow summary records the resulting OCI digest.
 
 Mutable tags are convenient for discovery, but production deployments must pin the digest reported by the successful workflow:
 
@@ -133,7 +133,7 @@ python scripts/validate_production_corpus.py --json-report ../artifacts/csv-prod
 
 Production-container browser smoke tests use Playwright. Build and start the container, install Chromium once with `npx playwright install chromium`, then run `npm run test:e2e` from `frontend/`.
 
-Before approving the default 500 MiB limit in a target environment, run the resource, boundary, restart, and cleanup procedure in [deploy/QUALIFICATION_500MB.md](deploy/QUALIFICATION_500MB.md).
+The default 500 MiB value is an upload byte limit. Measure processing time and resource use on the target host before relying on that capacity for shared work.
 
 ## Configuration
 
@@ -155,22 +155,13 @@ Copy `.env.example` when you need to override the defaults. Environment files co
 
 ## Privacy, security, and intended use
 
-The application is designed for a trusted private network. It does not provide user accounts, authorization, malware scanning, permanent job history, or a substitute for an organization's legal, privacy, records-management, or security review. Do not expose it directly to the public Internet. Terminate TLS at a reverse proxy, require organization-approved network or identity access there, set the proxy request-body limit at or above `MAX_UPLOAD_BYTES`, encrypt and restrict the persistent job volume, and include that volume in operational monitoring and secure deletion procedures. Verify generated work product before relying on it.
+The application is designed for a trusted private network. It does not provide user accounts, authorization, malware scanning, permanent job history, or legal or privacy review. Do not expose it directly to the public Internet. Use an HTTPS gateway with access control, protect the job volume, and verify generated work product before relying on it.
 
-Treat `JOB_DATA_DIR` as transient scratch space, never as the matter file or legal-hold repository. Archive the authoritative source or its immutable locator, generated output, JSON receipt, hashes, mapping/settings, release identity, and independent review in the organization's approved external matter repository before deleting or allowing a job to expire. See [deploy/NORMAL_PROCESSING.md](deploy/NORMAL_PROCESSING.md).
+`JOB_DATA_DIR` is transient scratch space. Download anything needed before the job expires or is deleted. The downloadable evidence ZIP contains the generated output, JSON/text receipts, and their hash manifest; it does not contain the source CSV or a human review record. Retain those separately if your workflow requires them.
 
 The web application emits a nonce-based Content Security Policy and restrictive browser headers. HSTS belongs at the TLS-terminating reverse proxy; only enable it after the deployment is exclusively available over HTTPS.
 
 This software is a data-preparation aid and does not provide legal advice. Its validation and personal-data detection are best-effort checks and may produce false positives or false negatives.
-
-## Operational governance
-
-- [Operations standard](deploy/OPERATIONS.md) — owners, gateway, allowlist, TLS, audit logging, storage, monitoring, and go/no-go rules.
-- [Normal processing](deploy/NORMAL_PROCESSING.md) — intake, maker-checker review, evidence package, and closure.
-- [Incident response](deploy/INCIDENT_RESPONSE.md) — containment, preservation, investigation, and recovery authorization.
-- [Recovery runbook](deploy/RECOVERY.md) — clean redeployment, controlled restoration, rollback, and exercises.
-- [Release dossier](deploy/RELEASE_DOSSIER.md) — engineering, license, operational, and owner approvals.
-- [500 MiB qualification](deploy/QUALIFICATION_500MB.md) — exact-limit, oversized, resource, concurrency, restart, and deletion tests.
 
 ## Example-data disclaimer
 
