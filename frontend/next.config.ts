@@ -7,8 +7,6 @@
 
 import type { NextConfig } from "next";
 
-const apiOrigin = process.env.API_ORIGIN ?? "http://127.0.0.1:8000";
-
 const nextConfig: NextConfig = {
   output: "standalone",
   reactStrictMode: true,
@@ -28,6 +26,8 @@ const nextConfig: NextConfig = {
     ];
   },
   async rewrites() {
+    if (process.env.NODE_ENV !== "development") return [];
+    const apiOrigin = process.env.API_ORIGIN ?? "http://127.0.0.1:8000";
     return [{ source: "/api/:path*", destination: `${apiOrigin}/api/:path*` }];
   },
 };

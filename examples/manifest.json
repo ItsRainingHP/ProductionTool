@@ -33003,7 +33003,7 @@
       "expectedStatus": "valid",
       "expectedErrors": [],
       "expectedRfpRanges": {
-        "RFP 01": [
+        "RFP 01; Synthetic quoted value, \"alpha\"\nSynthetic continuation \u2014 caf\u00e9": [
           {
             "begin": "SYNLCPLD012-0000001",
             "end": "SYNLCPLD012-0000001"
@@ -53010,10 +53010,10 @@
         "outcome": "complete",
         "outputRows": 5000,
         "outputCells": 10000,
-        "outputSizeBytes": 121677,
+        "outputSizeBytes": 121743,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "81bf88c46fbd0a7a94f65f3ec6d8edf15fb912434e731b8fe8ca6fe33970b029"
+        "outputSha256": "f281cd6b9b814cf08d41a753b6ccfa1908ac6baa2718d1f34f004fd2a2fcd1c7"
       }
     },
     {
@@ -53034,7 +53034,7 @@
       "expectedStatus": "valid",
       "expectedErrors": [],
       "expectedRfpRanges": {
-        "RFP 01": [
+        "RFP 01; SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-": [
           {
             "begin": "SYNLCPLD013-0000001",
             "end": "SYNLCPLD013-0000001"
@@ -54641,10 +54641,10 @@
         "outcome": "complete",
         "outputRows": 400,
         "outputCells": 800,
-        "outputSizeBytes": 9742,
+        "outputSizeBytes": 11904,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "26d39cd929f64873738979fba56956cf8f9e2c0bd0f5626baa9436c8bd032840"
+        "outputSha256": "0a7409bed2ef6b8e166a139a3d107ea736cac6fb372c32488a54925459185c8d"
       }
     },
     {
@@ -168922,7 +168922,7 @@
       "expectedStatus": "valid",
       "expectedErrors": [],
       "expectedRfpRanges": {
-        "RFP 01": [
+        "RFP 01; Synthetic quoted value, \"alpha\"\nSynthetic continuation \u2014 caf\u00e9": [
           {
             "begin": "SYNEWPLD012-0000001",
             "end": "SYNEWPLD012-0000001"
@@ -188929,10 +188929,10 @@
         "outcome": "complete",
         "outputRows": 5000,
         "outputCells": 10000,
-        "outputSizeBytes": 121677,
+        "outputSizeBytes": 121743,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "38004a6ba87dc9af3f3fa921d6516ceb47f5bbde02c4448d892c3a16a5c08428"
+        "outputSha256": "36ebd13b5f4c8c729b94f8469031a9649283e4880d416c9524873bf1affe346e"
       }
     },
     {
@@ -188953,7 +188953,7 @@
       "expectedStatus": "valid",
       "expectedErrors": [],
       "expectedRfpRanges": {
-        "RFP 01": [
+        "RFP 01; SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-SyntheticLongText-": [
           {
             "begin": "SYNEWPLD013-0000001",
             "end": "SYNEWPLD013-0000001"
@@ -190560,10 +190560,10 @@
         "outcome": "complete",
         "outputRows": 400,
         "outputCells": 800,
-        "outputSizeBytes": 9742,
+        "outputSizeBytes": 11904,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "dc51f55f553d3ffa4479029c71436caeda6100d7e7da8619875bf5257b9bc758"
+        "outputSha256": "60b80214bb10af931f2ca3dc9018c5cb42ff31d8ad660c91da03d69933711489"
       }
     },
     {
@@ -273514,7 +273514,7 @@
     "privilegeOutputs": 40,
     "outputRows": 132883,
     "outputCells": 526638,
-    "outputSizeBytes": 11667192,
+    "outputSizeBytes": 11671648,
     "skippedRows": 238,
     "formulaEscapes": 2
   }
