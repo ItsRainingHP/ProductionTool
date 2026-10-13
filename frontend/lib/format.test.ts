@@ -30,6 +30,17 @@ describe("platform confidence copy", () => {
     expect(platformConfidenceLabel(analysis)).toBe("Likely Logikcull · 92%");
   });
 
+  it("names Everlaw when its header pattern matches", () => {
+    const analysis = { platform: "everlaw" as const, platform_confidence: 86 };
+    expect(platformConfidenceSentence(analysis)).toContain("Everlaw (86% confidence)");
+    expect(platformConfidenceLabel(analysis)).toContain("Everlaw");
+  });
+
+  it("falls back to Unknown for an unrecognized future platform value", () => {
+    const analysis = { platform: "future-vendor" as "unknown", platform_confidence: 1 };
+    expect(platformConfidenceSentence(analysis)).toContain("Unknown (1% confidence)");
+  });
+
   it.each([0, 42, 59])("does not name a platform for an unknown score of %i", (platform_confidence) => {
     const analysis = { platform: "unknown" as const, platform_confidence };
     expect(platformConfidenceSentence(analysis)).toBe(`Source platform could not be identified confidently (${platform_confidence}% confidence).`);

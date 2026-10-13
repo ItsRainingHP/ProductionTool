@@ -8,7 +8,7 @@ Do not run this workload in routine CI. It intentionally consumes substantial CP
 
 - Use the exact candidate image digest and production-equivalent gateway, TLS, restricted private-network allowlist, logging, encrypted storage, container limits, and monitoring.
 - Confirm at least 5 GiB free in the job store plus host/runtime headroom.
-- Set the proxy body limit to accommodate a 500 MiB file plus multipart overhead; 550 MiB is the minimum recommended starting point.
+- Set the proxy body limit to accept an exact 500 MiB raw `text/csv` request and verify how that gateway counts bytes.
 - Record environment, image digest, release dossier, CPU/memory/storage limits, owners, start time, and agreed performance thresholds: upload `[required]`, analysis `[required]`, finalization `[required]`, peak memory `[required]`, peak scratch bytes `[required]`.
 
 ## Create boundary files

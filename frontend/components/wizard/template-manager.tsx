@@ -15,7 +15,10 @@ export function TemplateManager({ headers, columns, templates, onTemplatesChange
 }) {
   const [name, setName] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
-  const commit = (next: MappingTemplate[]) => { saveTemplates(next); onTemplatesChange(next); };
+  const commit = (next: MappingTemplate[]) => {
+    try { saveTemplates(next); onTemplatesChange(next); return true; }
+    catch (reason) { onError(reason instanceof Error ? reason.message : "Unable to save templates."); return false; }
+  };
   const download = () => {
     const url = URL.createObjectURL(new Blob([exportTemplates(templates)], { type: "application/json" }));
     const link = document.createElement("a"); link.href = url; link.download = "production-tool-mapping-templates.json"; link.click();
@@ -31,7 +34,7 @@ export function TemplateManager({ headers, columns, templates, onTemplatesChange
       }} />
       <Row gap="8" vertical="end" wrap>
         <Input id="template-name" label="Template name" value={name} onChange={(event) => setName(event.target.value)} />
-        <Button size="s" disabled={!name.trim() || !columns.length} onClick={() => { commit([...templates, createTemplate(name, columns)]); setName(""); }}>Save current mapping</Button>
+        <Button size="s" disabled={!name.trim() || name.length > 120 || !columns.length} onClick={() => { if (commit([...templates, createTemplate(name, columns)])) setName(""); }}>Save current mapping</Button>
         <Button size="s" variant="secondary" onClick={() => fileInput.current?.click()}>Import JSON</Button>
         <Button size="s" variant="secondary" disabled={!templates.length} onClick={download}>Export JSON</Button>
       </Row>

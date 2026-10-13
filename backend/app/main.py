@@ -9,9 +9,9 @@ from __future__ import annotations
 import asyncio
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
-from typing import Annotated
+from urllib.parse import unquote
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, Response
 
 from .jobs import JobStore
@@ -83,9 +83,33 @@ def create_job() -> JobCreated:
     return JobCreated(job_id=job.job_id, expires_at=job.expires_at)
 
 
-@app.put("/api/v1/jobs/{job_id}/source", response_model=JobView, status_code=202)
-async def upload_source(job_id: str, file: Annotated[UploadFile, File()]) -> JobView:
-    return await store.upload(job_id, file)
+@app.put(
+    "/api/v1/jobs/{job_id}/source",
+    response_model=JobView,
+    status_code=202,
+    openapi_extra={
+        "parameters": [{
+            "name": "X-File-Name", "in": "header", "required": True,
+            "description": "URL-encoded CSV filename; required for a raw text/csv upload.",
+            "schema": {"type": "string"},
+        }],
+        "requestBody": {
+            "required": True,
+            "content": {
+                "text/csv": {"schema": {"type": "string", "format": "binary"}},
+            },
+        },
+    },
+)
+async def upload_source(job_id: str, request: Request) -> JobView:
+    content_type = request.headers.get("content-type", "")
+    if content_type.casefold().startswith("multipart/form-data"):
+        raise HTTPException(415, "Multipart uploads are no longer supported. Send the CSV as a raw request body.")
+    length = request.headers.get("content-length")
+    if length is not None and (not length.isdecimal() or int(length) > store.max_bytes):
+        raise HTTPException(413, f"File exceeds the {store.max_bytes}-byte upload limit")
+    filename = unquote(request.headers.get("x-file-name", ""))
+    return await store.upload(job_id, filename, content_type, request.stream())
 
 
 @app.get("/api/v1/jobs/{job_id}", response_model=JobView)

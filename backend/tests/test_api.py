@@ -45,7 +45,8 @@ def test_rfp_job_lifecycle() -> None:
         with source.open("rb") as handle:
             uploaded = client.put(
                 f"/api/v1/jobs/{created['job_id']}/source",
-                files={"file": (source.name, handle, "text/csv")},
+                content=handle.read(),
+                headers={"Content-Type": "text/csv", "X-File-Name": source.name},
             )
         assert uploaded.status_code == 202
         analyzed = _wait_job(client, created["job_id"], {"needs_configuration", "failed"})
@@ -133,7 +134,8 @@ def _create_and_upload(client: TestClient, filename: str, content: bytes, conten
     created = client.post("/api/v1/jobs").json()
     response = client.put(
         f"/api/v1/jobs/{created['job_id']}/source",
-        files={"file": (filename, content, content_type)},
+        content=content,
+        headers={"Content-Type": content_type, "X-File-Name": filename},
     )
     if response.status_code == 202:
         payload = _wait_job(client, created["job_id"], {"needs_configuration", "failed"})
@@ -185,7 +187,7 @@ def test_binary_header_only_and_broken_quote_files_return_red_analysis() -> None
     with TestClient(app) as client:
         for filename, content, expected_code in [
             ("empty.csv", b"", "empty_file"),
-            ("invalid-utf8.csv", b"header\n\xff\xfe\n", "invalid_utf8"),
+            ("invalid-utf8.csv", b"header\n\x81\n", "invalid_utf8"),
             ("binary.csv", b"Bates/Control #,End Bates/Control #\nA\x00B,C\n", "embedded_nul"),
             ("header.csv", b"Bates/Control #,End Bates/Control #,RFP\n", "no_data_rows"),
             ("broken.csv", b'Bates/Control #,End Bates/Control #,RFP\n"TEST_0001,TEST_0002,RFP 01\n', "broken_quote"),
@@ -214,7 +216,8 @@ def test_warnings_require_exact_acknowledgments() -> None:
         created = client.post("/api/v1/jobs").json()
         uploaded = client.put(
             f"/api/v1/jobs/{created['job_id']}/source",
-            files={"file": (source.name, handle, "text/csv")},
+            content=handle.read(),
+            headers={"Content-Type": "text/csv", "X-File-Name": source.name},
         )
         assert uploaded.status_code == 202
         payload = _wait_job(client, created["job_id"], {"needs_configuration", "failed"})
@@ -258,7 +261,8 @@ def test_personal_data_findings_do_not_block_normalized_privilege_finalization()
         job_id = created["job_id"]
         uploaded = client.put(
             f"/api/v1/jobs/{job_id}/source",
-            files={"file": (source.name, handle, "text/csv")},
+            content=handle.read(),
+            headers={"Content-Type": "text/csv", "X-File-Name": source.name},
         )
         assert uploaded.status_code == 202
         analyzed = _wait_job(client, job_id, {"needs_configuration", "failed"})
@@ -373,6 +377,43 @@ def test_oversized_upload_leaves_no_partial_source() -> None:
             job_id, response = _create_and_upload(client, "large.csv", b"header\nmore-than-eight-bytes")
             assert response.status_code == 413
             assert not (store.root / job_id / "source.csv").exists()
+    finally:
+        store.max_bytes = original_limit
+
+
+def test_raw_upload_streams_and_multipart_is_rejected_early() -> None:
+    original_limit = store.max_bytes
+    try:
+        store.max_bytes = 1024 * 1024
+        with TestClient(app) as client:
+            job_id = client.post("/api/v1/jobs").json()["job_id"]
+            content = b"Begin Bates,End Bates,Tag: RFP 01\nABC0001,ABC0002,TRUE\n"
+            uploaded = client.put(
+                f"/api/v1/jobs/{job_id}/source",
+                content=content,
+                headers={"Content-Type": "text/csv", "X-File-Name": "sample.csv"},
+            )
+            assert uploaded.status_code == 202
+            assert _wait_job(client, job_id, {"needs_configuration", "failed"})["status"] == "needs_configuration"
+            assert (store.root / job_id / "source.csv").read_bytes() == content
+
+            too_large_id = client.post("/api/v1/jobs").json()["job_id"]
+            rejected = client.put(
+                f"/api/v1/jobs/{too_large_id}/source",
+                content=b"x" * (1024 * 1024 + 1),
+                headers={"Content-Type": "text/csv", "X-File-Name": "large.csv"},
+            )
+            assert rejected.status_code == 413
+            assert not (store.root / too_large_id / "source.partial").exists()
+            assert client.get(f"/api/v1/jobs/{too_large_id}").json()["status"] == "awaiting_upload"
+
+            multipart_id = client.post("/api/v1/jobs").json()["job_id"]
+            rejected_multipart = client.put(
+                f"/api/v1/jobs/{multipart_id}/source",
+                files={"file": ("sample.csv", content, "text/csv")},
+            )
+            assert rejected_multipart.status_code == 415
+            assert client.get(f"/api/v1/jobs/{multipart_id}").json()["status"] == "awaiting_upload"
     finally:
         store.max_bytes = original_limit
 
