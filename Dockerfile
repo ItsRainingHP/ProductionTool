@@ -13,11 +13,10 @@ COPY frontend/ ./
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
-FROM python:3.14-slim-bookworm@sha256:82bc3c539b8813ada9d68c63b40158fa002f7f33de9bf3312a3dfdc0620dff56 AS runtime
-ARG RELEASE_VERSION=1.2.0
+FROM python:3.13-slim-bookworm@sha256:2325bb286ec344af3e5898cc224b5844e2707ac6e26b1632516fd3edc84a5e26 AS runtime
+ARG RELEASE_VERSION=2.0.0
 ARG VCS_REF=unversioned
 ARG BUILD_DATE=unknown
-ARG IMAGE_DIGEST=unavailable
 LABEL org.opencontainers.image.title="Production Tool" \
     org.opencontainers.image.description="Internal CSV preparation tool for RFP ranges and privilege logs" \
     org.opencontainers.image.version="${RELEASE_VERSION}" \
@@ -31,7 +30,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     APP_VERSION=${RELEASE_VERSION} \
     BUILD_ID=${VCS_REF} \
     SOURCE_REVISION=${VCS_REF} \
-    IMAGE_DIGEST=${IMAGE_DIGEST} \
+    REQUIRE_IMAGE_DIGEST=1 \
     PRODUCTION_TOOL_RELEASE=${RELEASE_VERSION} \
     MAX_UPLOAD_BYTES=524288000 \
     JOB_TTL_SECONDS=14400 \
@@ -40,9 +39,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     MAX_TOTAL_JOB_BYTES=5368709120 \
     MAX_JOB_WORK_BYTES=2147483648 \
     MAX_JOB_CREATIONS_PER_MINUTE=30 \
-    JOB_DATA_DIR=/data/jobs
+    JOB_DATA_DIR=/data/jobs \
+    SQLITE_TMPDIR=/data/jobs/.sqlite-tmp
 
 RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
     && apt-get install -y --no-install-recommends curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
@@ -58,6 +59,7 @@ WORKDIR /app/frontend
 COPY --from=web-build /build/frontend/.next/standalone ./
 COPY --from=web-build /build/frontend/.next/static ./.next/static
 COPY deploy/supervisord.conf /etc/supervisord.conf
+COPY deploy/http-proxy.cjs /app/http-proxy.cjs
 
 RUN groupadd --system app \
     && useradd --system --gid app --home-dir /app app \

@@ -26,6 +26,10 @@ Personal-data findings are informational. They do not modify the uploaded CSV an
 4. Configure the requested formatting or field mapping.
 5. Review a preview, acknowledge any overrideable warnings, and download the generated file.
 
+### API upload change in 2.0.0
+
+Upload clients must send the CSV bytes as a raw `PUT /api/v1/jobs/{job_id}/source` request, with a supported CSV `Content-Type` and URL-encoded `X-File-Name` header. Multipart transport has been removed and returns HTTP 415. This is a breaking change for clients that previously sent a multipart `file` field; migrate them to the raw request before upgrading. The browser already uses raw uploads.
+
 ## Architecture
 
 - `frontend/` — Next.js 16 and React 19 user interface, shared API types, client validation, and component tests.
@@ -34,6 +38,7 @@ Personal-data findings are informational. They do not modify the uploaded CSV an
 - `deploy/` and `Dockerfile` — single-container production process configuration.
 
 Uploaded sources, generated outputs, receipts, and the SQLite job catalog are stored in `JOB_DATA_DIR`. They are ephemeral unless that directory is backed by a persistent volume. Jobs survive an application restart when that volume survives, and expired job directories are removed automatically.
+RFP processing scratch and SQLite disk-based temporary files also use the job volume, so capacity monitoring must include them.
 
 The canonical application version is stored in `VERSION`; `deploy/release-metadata.json` records the API/receipt schemas and digest-pinned base images. A deployable release is not approved until [deploy/RELEASE_DOSSIER.md](deploy/RELEASE_DOSSIER.md) is completed with an immutable image digest and named approvers.
 
@@ -45,7 +50,8 @@ For the container workflow, install Docker. For local development, install Pytho
 
 ```powershell
 docker build -t production-tool .
-docker run --rm --name production-tool -p 127.0.0.1:3000:3000 production-tool
+$localImageDigest = docker image inspect --format '{{.Id}}' production-tool
+docker run --rm --name production-tool -e IMAGE_DIGEST=$localImageDigest -p 127.0.0.1:3000:3000 production-tool
 ```
 
 Open `http://localhost:3000`. This loopback-only command is for local evaluation. It is not an approved shared or real-data deployment.
@@ -53,7 +59,8 @@ Open `http://localhost:3000`. This loopback-only command is for local evaluation
 To retain active job data across a container restart while preserving automatic expiry:
 
 ```powershell
-docker run --rm --name production-tool -p 127.0.0.1:3000:3000 -v production-tool-data:/data production-tool
+$localImageDigest = docker image inspect --format '{{.Id}}' production-tool
+docker run --rm --name production-tool -e IMAGE_DIGEST=$localImageDigest -p 127.0.0.1:3000:3000 -v production-tool-data:/data production-tool
 ```
 
 For shared use, follow [deploy/OPERATIONS.md](deploy/OPERATIONS.md). The account-free application must remain behind an organization-managed TLS gateway and restricted private-network allowlist with immutable request audit logging.
@@ -65,7 +72,7 @@ The CI workflow calls `.github/workflows/docker-publish.yml` only after the back
 - `DOCKER_USERNAME` — the Docker Hub account or organization that owns the image.
 - `DOCKER_PASSWORD` — a Docker Hub personal access token with read/write permission.
 
-Create a Docker Hub repository named `production-tool` in that namespace before the first run and select the approved visibility. Images are published to `docker.io/<docker-username>/production-tool`. A push to `main` publishes `main`, `latest`, and `sha-<full-commit>` tags. A tag such as `v1.2.0` must match `VERSION`; it publishes `1.2.0`, `latest`, and the commit tag. The workflow summary records the resulting OCI digest.
+Create a Docker Hub repository named `production-tool` in that namespace before the first run and select the approved visibility. Images are published to `docker.io/<docker-username>/production-tool`. A push to `main` publishes `main`, `latest`, and `sha-<full-commit>` tags. A tag such as `v2.0.0` must match `VERSION`; it publishes `2.0.0`, `latest`, and the commit tag. The workflow summary records the resulting OCI digest.
 
 Mutable tags are convenient for discovery, but production deployments must pin the digest reported by the successful workflow:
 
@@ -134,14 +141,16 @@ Copy `.env.example` when you need to override the defaults. Environment files co
 
 | Variable | Default | Purpose |
 | --- | ---: | --- |
-| `MAX_UPLOAD_BYTES` | `524288000` | Maximum source CSV size (500 MB). |
+| `MAX_UPLOAD_BYTES` | `524288000` | Maximum source CSV size (500 MiB). |
 | `JOB_TTL_SECONDS` | `14400` | Job lifetime in seconds (four hours). |
 | `JOB_DATA_DIR` | `/data/jobs` | Directory used for uploaded and generated job files. |
+| `SQLITE_TMPDIR` | `/data/jobs/.sqlite-tmp` in the container | Monitored scratch for SQLite sort files; the job store creates this directory and directs SQLite to it. |
 | `MAX_CONCURRENT_JOBS` | `2` | Maximum simultaneous analysis/finalization jobs. |
 | `MAX_ACTIVE_JOBS` | `20` | Maximum retained jobs, including jobs waiting for user input. |
 | `MAX_TOTAL_JOB_BYTES` | `5368709120` | Maximum aggregate bytes retained in the job store (5 GiB). |
-| `MAX_JOB_WORK_BYTES` | `2147483648` | Per-job output/work-file ceiling (2 GiB). |
+| `MAX_JOB_WORK_BYTES` | `2147483648` | Per-job analysis spool and combined RFP spool/staged-output ceiling (2 GiB); privilege output uses the same ceiling. |
 | `MAX_JOB_CREATIONS_PER_MINUTE` | `30` | Process-local job creation rate limit. |
+| `IMAGE_DIGEST` | required in the container | Exact `sha256:` image digest injected by deployment for processing receipts. |
 | `API_ORIGIN` | `http://127.0.0.1:8000` | FastAPI origin used by the Next.js server. |
 
 ## Privacy, security, and intended use
