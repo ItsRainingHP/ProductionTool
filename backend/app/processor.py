@@ -37,7 +37,12 @@ BEGIN_ALIASES = ("bates/control #", "begin bates")
 END_ALIASES = ("end bates/control #", "end bates")
 FORMULA_PREFIXES = ("=", "+", "-", "@", "＝", "＋", "－", "＠")
 BATES_PATTERN = re.compile(r"^(.*?)(\d+)$")
-RFP_NUMBER_PATTERN = re.compile(r"^(?:tag:\s*)?rfp(?:\s*:\s*rfp)?\s*(\d+)\b", re.IGNORECASE)
+RFP_NUMBER_PATTERN = re.compile(r"^(?:tag:\s*)?(rfp|rog)(?:\s*:\s*(?:rfp|rog))?\s*(\d+)\b", re.IGNORECASE)
+NEXT_REQUEST_PATTERN = re.compile(
+    r"[;,](?=\s*(?:tag:\s*)?(?:rfp|rog)(?:\s*:\s*(?:rfp|rog))?\s*\d+\b)", re.IGNORECASE
+)
+MAX_CSV_FIELD_CHARACTERS = 16 * 1024 * 1024
+csv.field_size_limit(MAX_CSV_FIELD_CHARACTERS)
 
 
 class ProcessingLimitError(RuntimeError):
@@ -45,7 +50,7 @@ class ProcessingLimitError(RuntimeError):
 
 
 EMAIL_PATTERN = re.compile(
-    r"(?<![\w.+-])([A-Z0-9.!#$%&*+/=?^_`{|}~-]+@([A-Z0-9.-]+\.[A-Z]{2,63}))(?![\w.-])",
+    r"(?<![\w.+-])([A-Z0-9][A-Z0-9.!#$%&*+/=?^_`{|}~-]{0,63}@([A-Z0-9.-]+\.[A-Z]{2,63}))(?![\w.-])",
     re.IGNORECASE,
 )
 FORMATTED_SSN_PATTERN = re.compile(r"(?<!\d)\d{3}[- ]\d{2}[- ]\d{4}(?!\d)")
@@ -273,7 +278,19 @@ def rfp_header_label(value: str) -> str | None:
     match = RFP_NUMBER_PATTERN.match(normalized)
     if not match:
         return None
-    return f"RFP {int(match.group(1)):02d}"
+    return f"{match.group(1).upper()} {int(match.group(2)):02d}"
+
+
+def request_labels_from_cell(value: str) -> list[str]:
+    """Keep free-text annotations while recognizing additional numbered requests."""
+    parts = [part.strip() for part in NEXT_REQUEST_PATTERN.split(value) if part.strip()]
+    labels: list[str] = []
+    for part in parts:
+        match = RFP_NUMBER_PATTERN.match(part)
+        label = f"{match.group(1).upper()} {int(match.group(2)):02d}{part[match.end():]}" if match else part
+        if label not in labels:
+            labels.append(label)
+    return labels
 
 
 def detect_platform(headers: Iterable[str]) -> tuple[Platform, int]:
@@ -308,7 +325,7 @@ def detect_platform(headers: Iterable[str]) -> tuple[Platform, int]:
 def parse_bates(value: str) -> Bates | None:
     value = value.strip()
     match = BATES_PATTERN.match(value)
-    if not match or not match.group(1) or len(match.group(2)) > 18:
+    if not match or len(match.group(2)) > 18:
         return None
     return Bates(value, match.group(1), match.group(2), int(match.group(2)))
 
@@ -340,12 +357,13 @@ def escape_formula(value: str) -> tuple[str, bool]:
     return value, False
 
 
-def _byte_issues(path: Path) -> list[Issue]:
+def _byte_issues(path: Path) -> tuple[list[Issue], str]:
     issues: list[Issue] = []
     with path.open("rb") as handle:
         first = handle.read(4)
         handle.seek(0)
         has_nul = False
+        has_encoding_marker = first.startswith((b"\xff\xfe", b"\xfe\xff"))
         invalid_utf8 = False
         decoder = codecs.getincrementaldecoder("utf-8-sig")(errors="strict")
         while chunk := handle.read(1024 * 1024):
@@ -361,8 +379,21 @@ def _byte_issues(path: Path) -> list[Issue]:
                 decoder.decode(b"", final=True)
             except UnicodeDecodeError:
                 invalid_utf8 = True
-    if invalid_utf8:
-        issues.append(Issue(code="invalid_utf8", severity="fatal", message="The file is not valid UTF-8."))
+    encoding = "utf-8-sig"
+    if invalid_utf8 and (has_nul or has_encoding_marker):
+        issues.append(
+            Issue(code="invalid_utf8", severity="fatal", message="Save this file as CSV UTF-8 and upload it again.")
+        )
+    elif invalid_utf8:
+        try:
+            with path.open("r", encoding="cp1252") as handle:
+                while handle.read(1024 * 1024):
+                    pass
+            encoding = "cp1252"
+        except UnicodeDecodeError:
+            issues.append(
+                Issue(code="invalid_utf8", severity="fatal", message="Save this file as CSV UTF-8 and upload it again.")
+            )
     if b"\x00" in first or has_nul:
         issues.append(Issue(code="embedded_nul", severity="fatal", message="The file contains embedded NUL bytes."))
     if first.startswith((b"\xff\xfe", b"\xfe\xff", b"\xff\xfe\x00\x00", b"\x00\x00\xfe\xff")):
@@ -373,14 +404,17 @@ def _byte_issues(path: Path) -> list[Issue]:
                 message="The file uses an unsupported encoding marker.",
             )
         )
-    return issues
+    return issues, encoding
 
 
 def _make_issue(code: str, *, row: int | None = None, column: str | None = None) -> Issue:
     messages = {
         "empty_file": "The CSV is empty.",
         "no_data_rows": "The CSV contains headers but no data rows.",
-        "uneven_row_width": "One or more rows have a different number of cells than the header.",
+        "uneven_row_width": (
+            "One or more rows have a different number of cells than the header and will be excluded from the output."
+        ),
+        "field_too_large": "A CSV cell exceeds the 16 MB field limit.",
         "broken_quote": "The CSV contains an unterminated or malformed quoted field.",
         "truncated_record": "The CSV appears to end during a record.",
         "duplicate_begin_bates_header": "The Begin Bates header appears more than once.",
@@ -397,7 +431,7 @@ def _make_issue(code: str, *, row: int | None = None, column: str | None = None)
         "inconsistent_padding": "One or more Bates ranges use inconsistent numeric padding.",
         "numeric_overflow": "One or more Bates numbers exceed the supported width.",
     }
-    fatal_codes = {"broken_quote", "truncated_record"}
+    fatal_codes = {"broken_quote", "truncated_record", "field_too_large"}
     warning_codes = {
         "uneven_row_width",
         "blank_begin_bates",
@@ -432,11 +466,13 @@ def _collapse_issues(issues: list[Issue]) -> list[Issue]:
     return list(collapsed.values())
 
 
-def analyze_csv(path: Path, filename: str) -> Analysis:
+def analyze_csv(
+    path: Path, filename: str, *, scratch_dir: Path | None = None, max_work_bytes: int | None = None
+) -> Analysis:
     size = path.stat().st_size
     if size == 0:
         return Analysis(filename=filename, size_bytes=0, issues=[_make_issue("empty_file")])
-    byte_issues = _byte_issues(path)
+    byte_issues, encoding = _byte_issues(path)
     if byte_issues:
         return Analysis(filename=filename, size_bytes=size, issues=byte_issues)
 
@@ -456,16 +492,32 @@ def analyze_csv(path: Path, filename: str) -> Analysis:
     row_count = 0
     prefixes: set[str] = set()
     duplicate_ranges = 0
-    range_store = sqlite3.connect("")
-    range_store.execute("PRAGMA journal_mode=OFF")
-    range_store.execute("PRAGMA synchronous=OFF")
-    range_store.execute("PRAGMA temp_store=FILE")
-    range_store.execute(
-        "CREATE TABLE analyzed_ranges ("
-        "label TEXT NOT NULL, prefix TEXT NOT NULL, width INTEGER NOT NULL, "
-        "begin_number INTEGER NOT NULL, end_number INTEGER NOT NULL, "
-        "UNIQUE(label,prefix,width,begin_number,end_number))"
-    )
+    scratch_database = scratch_dir / "analysis.sqlite" if scratch_dir else None
+    if scratch_dir:
+        scratch_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    range_store = sqlite3.connect(scratch_database or "")
+
+    def close_range_store() -> None:
+        range_store.close()
+        if scratch_database:
+            scratch_database.unlink(missing_ok=True)
+
+    try:
+        if max_work_bytes is not None:
+            page_size = range_store.execute("PRAGMA page_size").fetchone()[0]
+            range_store.execute(f"PRAGMA max_page_count={max(1, max_work_bytes // page_size)}")
+        range_store.execute("PRAGMA journal_mode=OFF")
+        range_store.execute("PRAGMA synchronous=OFF")
+        range_store.execute("PRAGMA temp_store=FILE")
+        range_store.execute(
+            "CREATE TABLE analyzed_ranges ("
+            "label TEXT NOT NULL, prefix TEXT NOT NULL, width INTEGER NOT NULL, "
+            "begin_number INTEGER NOT NULL, end_number INTEGER NOT NULL, "
+            "UNIQUE(label,prefix,width,begin_number,end_number))"
+        )
+    except BaseException:
+        close_range_store()
+        raise
     begin_indices: list[int] = []
     end_indices: list[int] = []
     combined_rfp_index: int | None = None
@@ -473,12 +525,12 @@ def analyze_csv(path: Path, filename: str) -> Analysis:
     personal_counts: dict[str, int] = defaultdict(int)
     personal_columns: dict[str, set[str]] = defaultdict(set)
     try:
-        with path.open("r", encoding="utf-8-sig", newline="") as handle:
+        with path.open("r", encoding=encoding, newline="") as handle:
             reader = csv.reader(handle, strict=True)
             try:
                 headers = next(reader)
             except StopIteration:
-                range_store.close()
+                close_range_store()
                 return Analysis(filename=filename, size_bytes=size, issues=[_make_issue("empty_file")])
             personal_profiles = [personal_data_profile(header) for header in headers]
             normalized_positions: dict[str, list[int]] = defaultdict(list)
@@ -550,7 +602,7 @@ def analyze_csv(path: Path, filename: str) -> Analysis:
                 prefixes.add(begin.prefix)
                 request_labels: list[str] = []
                 if combined_rfp_index is not None and row[combined_rfp_index].strip():
-                    request_labels = [row[combined_rfp_index].strip()]
+                    request_labels = request_labels_from_cell(row[combined_rfp_index])
                 else:
                     request_labels = [
                         label
@@ -559,38 +611,49 @@ def analyze_csv(path: Path, filename: str) -> Analysis:
                     ]
                 for label in request_labels:
                     number_match = RFP_NUMBER_PATTERN.match(label)
-                    canonical = f"RFP {int(number_match.group(1)):02d}" if number_match else label
+                    canonical = (
+                        f"{number_match.group(1).upper()} {int(number_match.group(2)):02d}{label[number_match.end():]}"
+                        if number_match else label
+                    )
                     inserted = range_store.execute(
                         "INSERT OR IGNORE INTO analyzed_ranges VALUES (?,?,?,?,?)",
                         (canonical, begin.prefix, len(begin.number_text), begin.number, end.number),
                     )
                     if inserted.rowcount == 0:
                         duplicate_ranges += 1
-    except csv.Error:
-        record_issue(_make_issue("uneven_row_width"))
-        record_issue(_make_issue("broken_quote"))
-        record_issue(_make_issue("truncated_record"))
+    except csv.Error as exc:
+        if "field larger than field limit" in str(exc):
+            record_issue(_make_issue("field_too_large"))
+        else:
+            record_issue(_make_issue("uneven_row_width"))
+            record_issue(_make_issue("broken_quote"))
+            record_issue(_make_issue("truncated_record"))
+    except BaseException:
+        close_range_store()
+        raise
 
-    if row_count == 0 and headers:
+    if row_count == 0 and headers and ("field_too_large", None) not in issue_map:
         record_issue(_make_issue("no_data_rows"))
     platform, platform_confidence = detect_platform(headers)
     workflow: DetectedWorkflow = "rfp_ranges" if combined_rfp_index is not None or separate_rfp else "privilege_log"
     gap_count = 0
     current_key: tuple[str, str, int] | None = None
     merged_end: int | None = None
-    for label, prefix, width, begin_number, end_number in range_store.execute(
-        "SELECT label,prefix,width,begin_number,end_number FROM analyzed_ranges "
-        "ORDER BY label,prefix,width,begin_number,end_number"
-    ):
-        key = (label, prefix, width)
-        if key != current_key:
-            current_key = key
-            merged_end = None
-        if merged_end is not None and begin_number > merged_end + 1:
-            gap_count += 1
-        merged_end = end_number if merged_end is None else max(merged_end, end_number)
-    request_count = int(range_store.execute("SELECT COUNT(DISTINCT label) FROM analyzed_ranges").fetchone()[0])
-    range_store.close()
+    try:
+        for label, prefix, width, begin_number, end_number in range_store.execute(
+            "SELECT label,prefix,width,begin_number,end_number FROM analyzed_ranges "
+            "ORDER BY label,prefix,width,begin_number,end_number"
+        ):
+            key = (label, prefix, width)
+            if key != current_key:
+                current_key = key
+                merged_end = None
+            if merged_end is not None and begin_number > merged_end + 1:
+                gap_count += 1
+            merged_end = end_number if merged_end is None else max(merged_end, end_number)
+        request_count = int(range_store.execute("SELECT COUNT(DISTINCT label) FROM analyzed_ranges").fetchone()[0])
+    finally:
+        close_range_store()
     category_order: tuple[PersonalDataCategory, ...] = (
         "ssn",
         "date_of_birth",
@@ -626,7 +689,8 @@ def analyze_csv(path: Path, filename: str) -> Analysis:
 
 
 def _iter_dict_rows(path: Path) -> Iterator[dict[str, str]]:
-    with path.open("r", encoding="utf-8-sig", newline="") as handle:
+    _, encoding = _byte_issues(path)
+    with path.open("r", encoding=encoding, newline="") as handle:
         reader = csv.reader(handle, strict=True)
         headers = next(reader)
         for row in reader:
@@ -670,7 +734,7 @@ def _populate_rfp_spool(
         "CREATE TABLE ranges (label TEXT NOT NULL, prefix TEXT NOT NULL, width INTEGER NOT NULL, "
         "begin_number TEXT NOT NULL, end_number TEXT NOT NULL)"
     )
-    skipped = 0
+    skipped = sum(issue.count for issue in analysis.issues if issue.code == "uneven_row_width")
     pending: list[tuple[str, str, int, str, str]] = []
 
     def insert_pending_rows() -> None:
@@ -689,8 +753,7 @@ def _populate_rfp_spool(
         labels: list[str]
         if combined and row.get(combined, "").strip():
             raw = row[combined].strip()
-            match = RFP_NUMBER_PATTERN.match(raw)
-            labels = [f"RFP {int(match.group(1)):02d}" if match else raw]
+            labels = request_labels_from_cell(raw)
         else:
             labels = [
                 label
@@ -699,7 +762,7 @@ def _populate_rfp_spool(
             ]
         for label in labels:
             match = RFP_NUMBER_PATTERN.match(label)
-            sort_label = f"0:{int(match.group(1)):020d}" if match else f"1:{label.casefold()}"
+            sort_label = f"0:{match.group(1).upper()}:{int(match.group(2)):020d}" if match else f"1:{label.casefold()}"
             pending.append(
                 (sort_label + "\x00" + label, begin.prefix, len(begin.number_text), begin.number_text, end.number_text)
             )
@@ -808,7 +871,9 @@ def render_rfp_text(rows: Iterable[list[str]], settings: PleadingSettings | None
     return "\r\n\r\n".join(sections) + ("\r\n" if sections else "")
 
 
-def _write_rfp_text(handle, rows: Iterator[list[str]], settings: PleadingSettings) -> int:
+def _write_rfp_text(
+    handle, rows: Iterator[list[str]], settings: PleadingSettings, max_output_bytes: int | None = None
+) -> int:
     """Write grouped RFP text with one-row lookahead and constant memory."""
     separator = {
         "comma": ", ",
@@ -821,30 +886,39 @@ def _write_rfp_text(handle, rows: Iterator[list[str]], settings: PleadingSetting
     previous_label: str | None = None
     group_position = 0
     output_rows = 0
+    written_bytes = 0
+
+    def write(value: str) -> None:
+        nonlocal written_bytes
+        written_bytes += len(value.encode("utf-8"))
+        if max_output_bytes is not None and written_bytes > max_output_bytes:
+            raise ProcessingLimitError("RFP scratch and output exceeded the configured per-job work limit")
+        handle.write(value)
+
     while current is not None:
         following = next(iterator, None)
         label, begin, end = current
         value = shorten_bates(begin, end)
         if label != previous_label:
             if previous_label is not None:
-                handle.write("\r\n\r\n")
-            handle.write(f"{label}\r\n")
+                write("\r\n\r\n")
+            write(f"{label}\r\n")
             group_position = 0
         else:
             is_last = following is None or following[0] != label
             if settings.include_and and is_last and group_position == 1:
-                handle.write(" and ")
+                write(" and ")
             else:
-                handle.write(separator)
+                write(separator)
                 if settings.include_and and is_last:
-                    handle.write("and ")
-        handle.write(value)
+                    write("and ")
+        write(value)
         previous_label = label
         group_position += 1
         output_rows += 1
         current = following
     if output_rows:
-        handle.write("\r\n")
+        write("\r\n")
     return output_rows
 
 
@@ -921,8 +995,9 @@ def build_artifact_preview(
 ) -> Preview:
     """Read the review sample from the staged bytes that will be finalized."""
     if workflow == "rfp_ranges":
-        full_text = path.read_bytes().decode("utf-8")
         excerpt_limit = 5_000
+        with path.open("r", encoding="utf-8", newline="") as handle:
+            excerpt = handle.read(excerpt_limit + 1)
         return Preview(
             headers=["RFP", "Bates Range"],
             rows=[],
@@ -931,9 +1006,9 @@ def build_artifact_preview(
             formula_escapes=stats.formula_escapes,
             artifact_sha256=artifact_sha256,
             configuration_revision=configuration_revision,
-            sample_truncated=len(full_text) > excerpt_limit,
+            sample_truncated=len(excerpt) > excerpt_limit,
             review_token=review_token,
-            text=full_text[:excerpt_limit],
+            text=excerpt[:excerpt_limit],
         )
     with path.open("r", encoding="utf-8-sig", newline="") as handle:
         reader = csv.reader(handle, strict=True)
@@ -968,22 +1043,35 @@ def write_output(
     overridden: int,
     pleading_settings: PleadingSettings | None = None,
     max_work_bytes: int | None = None,
+    scratch_dir: Path | None = None,
 ) -> OutputStats:
     started = time.perf_counter()
     if workflow == "rfp_ranges":
         effective_settings = pleading_settings or PleadingSettings()
-        with tempfile.TemporaryDirectory(prefix="production-tool-output-") as temporary:
+        path.unlink(missing_ok=True)
+        scratch_root = scratch_dir or path.parent / "scratch"
+        scratch_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="production-tool-output-", dir=scratch_root) as temporary:
+            database = Path(temporary) / "ranges.sqlite"
             try:
                 connection, skipped = _populate_rfp_spool(
-                    source, analysis, Path(temporary) / "ranges.sqlite", max_work_bytes
+                    source, analysis, database, max_work_bytes
                 )
             except sqlite3.DatabaseError as exc:
                 if "full" in str(exc).casefold():
                     raise ProcessingLimitError("RFP processing exceeded the configured scratch-space limit") from exc
                 raise
             try:
+                spool_bytes = database.stat().st_size
+                if max_work_bytes is not None and spool_bytes > max_work_bytes:
+                    raise ProcessingLimitError("RFP scratch exceeded the configured per-job work limit")
                 with path.open("w", encoding="utf-8", newline="") as handle:
-                    output_rows = _write_rfp_text(handle, _iter_merged_rfp_rows(connection), effective_settings)
+                    output_rows = _write_rfp_text(
+                        handle,
+                        _iter_merged_rfp_rows(connection),
+                        effective_settings,
+                        None if max_work_bytes is None else max_work_bytes - spool_bytes,
+                    )
             finally:
                 connection.close()
         if output_rows == 0:

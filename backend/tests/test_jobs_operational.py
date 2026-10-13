@@ -23,8 +23,8 @@ def make_store(monkeypatch: pytest.MonkeyPatch, root: Path, **settings: int) -> 
     monkeypatch.setenv("JOB_DATA_DIR", str(root))
     defaults = {
         "MAX_UPLOAD_BYTES": 800,
-        "MAX_TOTAL_JOB_BYTES": 10_000,
-        "MAX_JOB_WORK_BYTES": 2_000,
+        "MAX_TOTAL_JOB_BYTES": 1_000_000,
+        "MAX_JOB_WORK_BYTES": 64_000,
         "MAX_CONCURRENT_JOBS": 1,
         "JOB_LEASE_SECONDS": 15,
     }
@@ -68,25 +68,25 @@ def test_concurrent_uploads_reserve_aggregate_capacity(monkeypatch: pytest.Monke
             self.release = release
             self.sent = False
 
-        async def read(self, _: int) -> bytes:
+        async def __aiter__(self):
             if self.sent:
-                return b""
+                return
             self.started.set()
             await self.release.wait()
             self.sent = True
-            return self.payload
-
-        async def close(self) -> None:
-            return None
+            yield self.payload
 
     async def exercise() -> None:
         started = asyncio.Event()
         release = asyncio.Event()
         first_upload = SlowUpload(b"A\n" + b"x" * 698, started, release)
-        task = asyncio.create_task(store.upload(first.job_id, first_upload))
+        task = asyncio.create_task(
+            store.upload(first.job_id, first_upload.filename, first_upload.content_type, first_upload)
+        )
         await started.wait()
         with pytest.raises(HTTPException) as rejected:
-            await store.upload(second.job_id, SlowUpload(b"A\n", asyncio.Event(), asyncio.Event()))
+            second_upload = SlowUpload(b"A\n", asyncio.Event(), asyncio.Event())
+            await store.upload(second.job_id, second_upload.filename, second_upload.content_type, second_upload)
         assert rejected.value.status_code == 507
         release.set()
         await task
@@ -96,6 +96,29 @@ def test_concurrent_uploads_reserve_aggregate_capacity(monkeypatch: pytest.Monke
     with store._connect() as connection:
         reserved = connection.execute("SELECT COALESCE(SUM(reserved_bytes),0) FROM jobs").fetchone()[0]
     assert reserved == 0
+
+
+def test_exact_limit_raw_upload_and_overflow_cleanup(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    store = make_store(monkeypatch, tmp_path, MAX_UPLOAD_BYTES=8)
+    exact = store.create()
+    overflow = store.create()
+
+    async def chunks(*values: bytes):
+        for value in values:
+            yield value
+
+    async def exercise() -> None:
+        uploaded = await store.upload(exact.job_id, "source.csv", "text/csv", chunks(b"A\n", b"123456"))
+        assert uploaded.status == JobStatus.analyzing
+        with pytest.raises(HTTPException) as rejected:
+            await store.upload(overflow.job_id, "source.csv", "text/csv", chunks(b"A\n", b"1234567"))
+        assert rejected.value.status_code == 413
+
+    asyncio.run(exercise())
+    assert (tmp_path / exact.job_id / "source.csv").read_bytes() == b"A\n123456"
+    assert not (tmp_path / overflow.job_id / "source.partial").exists()
+    assert not (tmp_path / overflow.job_id / "source.csv").exists()
+    assert store.get(overflow.job_id).status == JobStatus.awaiting_upload
 
 
 def test_startup_repairs_interrupted_upload(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -127,9 +150,16 @@ def test_live_lease_survives_second_store_startup(monkeypatch: pytest.MonkeyPatc
     queue_analysis(first, job.job_id)
     claim = first._claim_task()
     assert claim is not None
+    scratch = tmp_path / job.job_id / "scratch"
+    scratch.mkdir()
+    (scratch / "live.sqlite").write_text("leased", encoding="utf-8")
+    shared_temporary = first.sqlite_temp / "live-sort"
+    shared_temporary.write_text("leased", encoding="utf-8")
 
     second = make_store(monkeypatch, tmp_path)
     assert second._claim_task() is None
+    assert (scratch / "live.sqlite").read_text(encoding="utf-8") == "leased"
+    assert shared_temporary.read_text(encoding="utf-8") == "leased"
     with second._connect() as connection:
         row = connection.execute(
             "SELECT lease_owner,lease_token,lease_until FROM jobs WHERE job_id=?", (job.job_id,)
