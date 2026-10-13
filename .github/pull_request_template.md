@@ -18,6 +18,5 @@ Describe the user-visible behavior and the reason for the change.
 ## Release and operations
 
 - [ ] `python deploy/verify_release_metadata.py` passes, or this change does not affect release identity.
-- [ ] Docker, dependency, or deployment changes update the SBOM/license and release-dossier evidence.
-- [ ] Data retention, archive, gateway, audit, recovery, or incident procedures were updated when behavior changed.
-- [ ] A 500 MiB qualification rerun is attached when upload, processing, resource, proxy, storage, or runtime behavior changed.
+- [ ] Docker, dependency, or deployment changes pass the production-container and image security checks.
+- [ ] Upload-limit or processing changes include representative boundary and cleanup tests.

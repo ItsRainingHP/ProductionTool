@@ -9,7 +9,7 @@ import type { Analysis, Workflow } from "./types";
 
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
-  const units = ["KB", "MB", "GB"];
+  const units = ["KiB", "MiB", "GiB"];
   let value = bytes / 1024;
   let index = 0;
   while (value >= 1024 && index < units.length - 1) {

@@ -47,7 +47,7 @@ export function clientFileError(
 ): string | null {
   if (!file.name.toLocaleLowerCase().endsWith(".csv")) return "Choose a file with a .csv extension.";
   if (file.size === 0) return "Choose a non-empty CSV file.";
-  if (file.size > maxBytes) return `This file exceeds the ${Math.round(maxBytes / 1024 / 1024)} MB upload limit.`;
+  if (file.size > maxBytes) return `This file exceeds the ${Math.round(maxBytes / 1024 / 1024)} MiB upload limit.`;
   if (!allowedTypes.has(file.type.toLocaleLowerCase())) {
     return "This file reports an unsupported type. Choose a CSV text file.";
   }

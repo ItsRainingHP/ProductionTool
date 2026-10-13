@@ -78,7 +78,7 @@ describe("client CSV checks", () => {
   it("rejects wrong extensions, empty, oversized, and incompatible declared types", () => {
     expect(clientFileError({ name: "export.txt", size: 10, type: "text/plain" }, maxBytes)).toMatch(/\.csv/);
     expect(clientFileError({ name: "export.csv", size: 0, type: "text/csv" }, maxBytes)).toMatch(/non-empty/);
-    expect(clientFileError({ name: "export.csv", size: maxBytes + 1, type: "text/csv" }, maxBytes)).toMatch(/500 MB/);
+    expect(clientFileError({ name: "export.csv", size: maxBytes + 1, type: "text/csv" }, maxBytes)).toMatch(/500 MiB/);
     expect(clientFileError({ name: "export.csv", size: 10, type: "application/pdf" }, maxBytes)).toMatch(/unsupported type/);
   });
 });

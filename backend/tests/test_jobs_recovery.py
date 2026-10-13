@@ -582,6 +582,37 @@ def test_analysis_worker_ignores_stale_lease_and_cancellation(
     assert not (tmp_path / job_id).exists()
 
 
+def test_analysis_retry_uses_fresh_scratch_after_live_lease_restart(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    original = store_at(monkeypatch, tmp_path)
+    job_id = configured_rfp(original)
+    scratch = tmp_path / job_id / "scratch"
+    scratch.mkdir()
+    with closing(sqlite3.connect(scratch / "analysis.sqlite")) as connection:
+        connection.execute("CREATE TABLE analyzed_ranges (label TEXT)")
+    with original._connect() as connection:
+        job = original._load_locked(job_id, connection)
+        job.status = JobStatus.analyzing
+        job.analysis = None
+        original._save_locked(job, connection, task="analyze", task_payload={"filename": "source.csv"},
+                              preserve_task=False)
+        original._assign_lease_locked(job_id, connection)
+
+    restarted = store_at(monkeypatch, tmp_path)
+    assert (scratch / "analysis.sqlite").exists()
+    with restarted._connect() as connection:
+        connection.execute("UPDATE jobs SET lease_until=? WHERE job_id=?", (time.time() - 1, job_id))
+    claimed = restarted._claim_task()
+    assert claimed is not None and claimed[1] == "analyze"
+    restarted._run_analysis(job_id, "source.csv", claimed[3])
+
+    job = restarted.get(job_id)
+    assert job.status == JobStatus.needs_configuration
+    assert job.analysis is not None and job.analysis.row_count == 1
+    assert not scratch.exists()
+
+
 def test_review_worker_rejects_changed_source_and_incomplete_configuration(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
 ) -> None:

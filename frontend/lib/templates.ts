@@ -109,7 +109,7 @@ export function exportTemplates(templates: MappingTemplate[]): string {
 }
 
 export function importTemplates(text: string): MappingTemplate[] {
-  if (new TextEncoder().encode(text).length > MAX_IMPORT_BYTES) throw new Error("Template files must be 256 KB or smaller.");
+  if (new TextEncoder().encode(text).length > MAX_IMPORT_BYTES) throw new Error("Template files must be 256 KiB or smaller.");
   let value: unknown;
   try { value = JSON.parse(text); } catch { throw new Error("The template file is not valid JSON."); }
   const payload = value as { schemaVersion?: unknown; templates?: unknown };
