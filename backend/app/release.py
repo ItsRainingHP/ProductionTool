@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 import re
 
-APP_VERSION = os.getenv("APP_VERSION", "2.0.1")
+APP_VERSION = os.getenv("APP_VERSION", "2.0.2")
 BUILD_ID = os.getenv("BUILD_ID", "development")
 SOURCE_REVISION = os.getenv("SOURCE_REVISION", "unversioned")
 IMAGE_DIGEST = os.getenv("IMAGE_DIGEST", "unavailable")
