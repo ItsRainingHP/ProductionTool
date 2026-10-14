@@ -192,7 +192,7 @@ jobs:
           grep -Eiq '^cache-control: no-store' "$RUNNER_TEMP/headers.txt"
           grep -Eiq '^x-content-type-options: nosniff' "$RUNNER_TEMP/headers.txt"
           grep -Eiq '^x-frame-options: DENY' "$RUNNER_TEMP/headers.txt"
-          grep -Eiq '^referrer-policy: no-referrer' "$RUNNER_TEMP/headers.txt"
+          grep -Eiq '^referrer-policy: same-origin' "$RUNNER_TEMP/headers.txt"
       - name: Verify runtime limits and container hardening
         shell: bash
         run: |
