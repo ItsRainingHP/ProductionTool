@@ -112,6 +112,7 @@ def test_capabilities_are_the_runtime_source_of_limits() -> None:
     with TestClient(app) as client:
         response = client.get("/api/v1/capabilities")
         assert response.status_code == 200
+        assert response.headers["referrer-policy"] == "same-origin"
         assert response.json() == {
             "max_upload_bytes": store.max_bytes,
             "job_ttl_seconds": store.ttl_seconds,
