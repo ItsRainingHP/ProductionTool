@@ -1,0 +1,4 @@
+Bates/Control #,End Bates/Control #,Attorney Client,Work Product,Subject,Mixed Notes,Empty Flag
+SYNLCPRVFLAG-0000001,SYNLCPRVFLAG-0000001,TRUE,,Synthetic privilege subject one,TRUE,
+SYNLCPRVFLAG-0000002,SYNLCPRVFLAG-0000003,,TRUE,Synthetic privilege subject two,Contains a TRUE marker,
+SYNLCPRVFLAG-0000004,SYNLCPRVFLAG-0000004,TRUE,TRUE,Synthetic privilege subject three,TRUE,

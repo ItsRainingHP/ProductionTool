@@ -626,7 +626,7 @@ export function Wizard() {
                 ) : (
                   <Column gap="16">
                     <TemplateManager headers={job.analysis.headers} columns={effectiveMappingColumns} templates={templates} onTemplatesChange={setTemplates} onApply={(columns, missing) => { setMappingColumns(columns); setAdvancedDirty(true); if (missing.length) setError(`Template fields not present in this CSV: ${missing.join(", ")}`); }} onError={setError} />
-                    <MappingEditor headers={job.analysis.headers} columns={effectiveMappingColumns} onChange={(columns) => { setMappingColumns(columns); setAdvancedDirty(true); }} />
+                    <MappingEditor jobId={job.job_id} headers={job.analysis.headers} columns={effectiveMappingColumns} onChange={(columns) => { setMappingColumns(columns); setAdvancedDirty(true); }} />
                   </Column>
                 )}
                 {advancedDirty && (

@@ -150,6 +150,50 @@ def json_bytes(value: dict) -> bytes:
     return json.dumps(value).encode("utf-8")
 
 
+def test_mapping_blank_check_reports_output_gaps_without_saving_the_mapping() -> None:
+    source = (
+        b"Bates/Control #,End Bates/Control #,Author,Recipient\n"
+        b"TEST0001,TEST0002,Alice,\n"
+        b"TEST0003,TEST0004,,Bob\n"
+        b"TEST0005,TEST0006,, \n"
+    )
+    with TestClient(app) as client:
+        job_id, uploaded = _create_and_upload(client, "privilege-blanks.csv", source)
+        assert uploaded.status_code == 202
+        mapping = {"columns": [
+            {"id": "author", "name": "Author", "source_fields": ["Author"]},
+            {"id": "person", "name": "Person", "source_fields": ["Author", "Recipient"],
+             "transform": {"kind": "fill"}},
+        ]}
+        assert client.post(f"/api/v1/jobs/{job_id}/mapping/blank-cells", json=mapping).status_code == 409
+        before = client.put(f"/api/v1/jobs/{job_id}/workflow", json={"workflow": "privilege_log"}).json()
+        response = client.post(f"/api/v1/jobs/{job_id}/mapping/blank-cells", json=mapping)
+        assert response.status_code == 200
+        assert response.json() == {"blank_cells": [2, 1], "output_rows": 3}
+        after = client.get(f"/api/v1/jobs/{job_id}").json()
+        assert after["mapping"] is None
+        assert after["revision"] == before["revision"]
+        mapping["columns"][0]["source_fields"] = ["Missing field"]
+        assert client.post(f"/api/v1/jobs/{job_id}/mapping/blank-cells", json=mapping).status_code == 422
+
+
+def test_mapping_blank_check_uses_logikcull_flag_headers() -> None:
+    source = CORPUS / "generated/logikcull/privilege/valid/lc_privilege_feature_true_blank_flags.csv"
+    mapping = {"columns": [
+        {"id": "direct", "name": "Direct", "source_fields": ["Attorney Client"]},
+        {"id": "joined", "name": "Joined", "source_fields": ["Attorney Client", "Work Product"],
+         "transform": {"kind": "delimit", "delimiter": "; "}},
+    ]}
+    with TestClient(app) as client:
+        job_id, uploaded = _create_and_upload(client, source.name, source.read_bytes())
+        assert uploaded.status_code == 202
+        assert uploaded.json()["analysis"]["true_blank_headers"] == ["Attorney Client", "Work Product"]
+        assert client.put(f"/api/v1/jobs/{job_id}/workflow", json={"workflow": "privilege_log"}).status_code == 200
+        response = client.post(f"/api/v1/jobs/{job_id}/mapping/blank-cells", json=mapping)
+        assert response.status_code == 200
+        assert response.json() == {"blank_cells": [1, 0], "output_rows": 3}
+
+
 def test_pleading_settings_validate_workflow_and_delimiter() -> None:
     pleading = b"Bates/Control #,End Bates/Control #,RFP\nTEST_0001,TEST_0002,RFP 01\n"
     privilege = b"Bates/Control #,End Bates/Control #,Description\nTEST_0001,TEST_0002,Legal advice\n"

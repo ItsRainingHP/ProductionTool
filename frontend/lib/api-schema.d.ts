@@ -141,6 +141,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/jobs/{job_id}/mapping/blank-cells": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Inspect Mapping Blanks */
+        post: operations["inspect_mapping_blanks_api_v1_jobs__job_id__mapping_blank_cells_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/jobs/{job_id}/pleading-settings": {
         parameters: {
             query?: never;
@@ -299,6 +316,8 @@ export interface components {
             column_count: number;
             /** Headers */
             headers?: string[];
+            /** True Blank Headers */
+            true_blank_headers?: string[];
             /** @default unknown */
             platform: components["schemas"]["Platform"];
             /**
@@ -490,6 +509,13 @@ export interface components {
         };
         /** @enum {string} */
         JobWorkflow: "rfp_ranges" | "privilege_log";
+        /** MappingBlankReport */
+        MappingBlankReport: {
+            /** Blank Cells */
+            blank_cells: number[];
+            /** Output Rows */
+            output_rows: number;
+        };
         /** MappingConfig */
         MappingConfig: {
             /** Columns */
@@ -867,6 +893,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    inspect_mapping_blanks_api_v1_jobs__job_id__mapping_blank_cells_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MappingConfig"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MappingBlankReport"];
                 };
             };
             /** @description Validation Error */

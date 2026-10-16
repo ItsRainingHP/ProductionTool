@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createJob, deleteJob, finalizeJob, getCapabilities, getJob, getPreview, readyForReview, setMapping, setPleadingSettings, setWorkflow, uploadSource } from "./api";
+import { createJob, deleteJob, finalizeJob, getCapabilities, getJob, getPreview, inspectMappingBlanks, readyForReview, setMapping, setPleadingSettings, setWorkflow, uploadSource } from "./api";
 
 describe("API error messages", () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -44,6 +44,7 @@ describe("API error messages", () => {
     await getJob("job-1");
     await setWorkflow("job-1", "rfp_ranges");
     await setMapping("job-1", { columns: [] });
+    await inspectMappingBlanks("job-1", { columns: [] });
     await setPleadingSettings("job-1", { delimiter: "comma", include_and: true });
     await readyForReview("job-1", ["uneven_row_width"]);
     await getPreview("job-1");
@@ -51,11 +52,11 @@ describe("API error messages", () => {
     expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
       "/api/v1/jobs", "/api/v1/capabilities", "/api/v1/jobs/job-1",
       "/api/v1/jobs/job-1/workflow", "/api/v1/jobs/job-1/mapping",
-      "/api/v1/jobs/job-1/pleading-settings", "/api/v1/jobs/job-1/review",
+      "/api/v1/jobs/job-1/mapping/blank-cells", "/api/v1/jobs/job-1/pleading-settings", "/api/v1/jobs/job-1/review",
       "/api/v1/jobs/job-1/preview?limit=5", "/api/v1/jobs/job-1/finalize",
     ]);
-    expect(fetcher.mock.calls[6][1].body).toBe(JSON.stringify({ acknowledged_issue_codes: ["uneven_row_width"] }));
-    expect(fetcher.mock.calls[8][1].body).toContain('"review_token":"review-token"');
+    expect(fetcher.mock.calls[7][1].body).toBe(JSON.stringify({ acknowledged_issue_codes: ["uneven_row_width"] }));
+    expect(fetcher.mock.calls[9][1].body).toContain('"review_token":"review-token"');
   });
 
   it("handles empty, structured, and unstructured server responses", async () => {

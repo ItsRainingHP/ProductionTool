@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Providers } from "../../app/providers";
 import type { Analysis, Job, Preview } from "../../lib/types";
-import { createJob, deleteJob, finalizeJob, getCapabilities, getJob, getPreview, readyForReview, setMapping, setPleadingSettings, setWorkflow, uploadSource } from "../../lib/api";
+import { createJob, deleteJob, finalizeJob, getCapabilities, getJob, getPreview, inspectMappingBlanks, readyForReview, setMapping, setPleadingSettings, setWorkflow, uploadSource } from "../../lib/api";
 import { Wizard } from "./wizard";
 
 const navigation = vi.hoisted(() => ({
@@ -17,13 +17,14 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("../../lib/api", () => ({
   createJob: vi.fn(), deleteJob: vi.fn(), finalizeJob: vi.fn(), getCapabilities: vi.fn(),
-  getJob: vi.fn(), getPreview: vi.fn(), readyForReview: vi.fn(), setMapping: vi.fn(),
+  getJob: vi.fn(), getPreview: vi.fn(), inspectMappingBlanks: vi.fn(), readyForReview: vi.fn(), setMapping: vi.fn(),
   setPleadingSettings: vi.fn(), setWorkflow: vi.fn(), uploadSource: vi.fn(),
 }));
 
 const analysis: Analysis = {
   filename: "source.csv", size_bytes: 55, row_count: 2, column_count: 3,
   headers: ["Begin Bates", "End Bates", "Tag: RFP 01"],
+  true_blank_headers: [],
   detected_workflow: "rfp_ranges", rfp_layout: "separate",
   begin_bates_header: "Begin Bates", end_bates_header: "End Bates",
   platform: "unknown", platform_confidence: 0, prefixes: ["ABC"],
@@ -61,6 +62,7 @@ describe("wizard recovery", () => {
       max_upload_bytes: 524288000, job_ttl_seconds: 14400, max_active_jobs: 20,
       max_total_job_bytes: 5368709120, supported_content_types: ["text/csv", ""], features: [],
     });
+    vi.mocked(inspectMappingBlanks).mockResolvedValue({ blank_cells: [0], output_rows: 2 });
   });
   afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 

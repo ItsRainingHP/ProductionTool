@@ -6,14 +6,14 @@
  */
 
 import { useState } from "react";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Providers } from "../../app/providers";
 import type { OutputColumn } from "../../lib/types";
 import { MappingEditor } from "./mapping-editor";
 
 describe("MappingEditor normalization", () => {
-  afterEach(cleanup);
+  afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
   beforeEach(() => {
     Object.defineProperty(window, "localStorage", {
       configurable: true,
@@ -45,13 +45,38 @@ describe("MappingEditor normalization", () => {
     expect(screen.getByText(/source CSV is not changed/i)).toBeInTheDocument();
   });
 
-  function Harness({ headers, initial }: { headers: string[]; initial: OutputColumn[] }) {
+  function Harness({ headers, initial, jobId }: { headers: string[]; initial: OutputColumn[]; jobId?: string }) {
     const [columns, setColumns] = useState(initial);
-    return <Providers><MappingEditor headers={headers} columns={columns} onChange={setColumns} />
+    return <Providers><MappingEditor jobId={jobId} headers={headers} columns={columns} onChange={setColumns} />
       <output data-testid="mapping-state">{JSON.stringify(columns)}</output></Providers>;
   }
 
   const state = (): OutputColumn[] => JSON.parse(screen.getByTestId("mapping-state").textContent ?? "[]") as OutputColumn[];
+
+  it("warns only for affected output columns and refreshes after a mapping change", async () => {
+    const fetcher = vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
+      const mapping = JSON.parse(init.body as string) as { columns: OutputColumn[] };
+      return new Response(JSON.stringify({
+        blank_cells: mapping.columns.map((column) => column.source_fields.length === 1 ? 2 : 0),
+        output_rows: 3,
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    vi.stubGlobal("fetch", fetcher);
+    const initial: OutputColumn[] = [
+      { id: "author", name: "Author", source_fields: ["Author"], transform: { kind: "none", delimiter: null }, normalize: false },
+      { id: "range", name: "Range", source_fields: ["Begin Bates", "End Bates"], transform: { kind: "shorten_bates", delimiter: null }, normalize: false },
+    ];
+    const { container } = render(<Harness jobId="job-1" headers={["Author", "Recipient", "Begin Bates", "End Bates"]} initial={initial} />);
+    const cards = container.querySelectorAll(".mapping-column-card");
+    expect(await within(cards[0] as HTMLElement).findByText("2 blank output cells")).toBeVisible();
+    expect(within(cards[1] as HTMLElement).queryByText(/blank output cell/)).not.toBeInTheDocument();
+    expect(within(cards[0] as HTMLElement).getByText("This column will be empty in 2 of 3 rows.")).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: /Recipient/ }));
+    fireEvent.click(within(cards[0] as HTMLElement).getByRole("button", { name: "Add Recipient here" }));
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
+    expect(within(cards[0] as HTMLElement).queryByText(/blank output cell/)).not.toBeInTheDocument();
+  });
 
   it("finds and assigns fields, then reorders and removes them", () => {
     const initial: OutputColumn[] = [{ id: "output", name: "People", source_fields: ["First"],
