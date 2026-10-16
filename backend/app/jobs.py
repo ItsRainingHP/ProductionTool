@@ -32,12 +32,19 @@ from .models import (
     JobStatus,
     JobView,
     JobWorkflow,
+    MappingBlankReport,
     MappingConfig,
     PleadingSettings,
     Preview,
     Receipt,
 )
-from .processor import ProcessingLimitError, analyze_csv, build_artifact_preview, write_output
+from .processor import (
+    ProcessingLimitError,
+    analyze_csv,
+    build_artifact_preview,
+    count_privilege_blank_cells,
+    write_output,
+)
 from .release import APP_VERSION, BUILD_ID, IMAGE_DIGEST, SOURCE_REVISION
 
 SAFE_FILENAME = re.compile(r"^[^<>:\"/\\|?*\x00-\x1f]+$")
@@ -649,6 +656,18 @@ class JobStore:
             job.status = JobStatus.needs_configuration
             self._remove_outputs(job_id)
             return self._save_locked(job, connection)
+
+    def inspect_mapping_blanks(self, job_id: str, mapping: MappingConfig) -> MappingBlankReport:
+        job = self.get(job_id)
+        self._ensure_configurable(job)
+        if job.workflow != "privilege_log" or job.analysis is None:
+            raise HTTPException(409, "Select the Privilege Log workflow first")
+        unknown = sorted(
+            {field for column in mapping.columns for field in column.source_fields} - set(job.analysis.headers)
+        )
+        if unknown:
+            raise HTTPException(422, f"Unknown source fields: {', '.join(unknown)}")
+        return count_privilege_blank_cells(self.source_path(job_id), mapping, job.analysis)
 
     def _invalidate_review(self, job: JobView) -> None:
         job.configuration_revision += 1

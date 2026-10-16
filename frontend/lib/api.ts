@@ -5,7 +5,7 @@
  * @license MIT
  */
 
-import type { Capabilities, Job, MappingConfig, PleadingSettings, Preview, Workflow } from "./types";
+import type { Capabilities, Job, MappingBlankReport, MappingConfig, PleadingSettings, Preview, Workflow } from "./types";
 
 const SERVICE_MESSAGE = "The production service could not be reached or returned an unexpected response. Check your private-network connection and try again, or contact the service operator.";
 const ACCESS_MESSAGE = "Access was denied. Check your approved private-network connection or contact the service operator.";
@@ -98,6 +98,7 @@ export function uploadSource(
 export const getJob = (jobId: string, signal?: AbortSignal) => request<Job>(`/api/v1/jobs/${jobId}`, { signal });
 export const setWorkflow = (jobId: string, workflow: Workflow) => request<Job>(`/api/v1/jobs/${jobId}/workflow`, { method: "PUT", body: JSON.stringify({ workflow }) });
 export const setMapping = (jobId: string, mapping: MappingConfig) => request<Job>(`/api/v1/jobs/${jobId}/mapping`, { method: "PUT", body: JSON.stringify(mapping) });
+export const inspectMappingBlanks = (jobId: string, mapping: MappingConfig, signal?: AbortSignal) => request<MappingBlankReport>(`/api/v1/jobs/${jobId}/mapping/blank-cells`, { method: "POST", body: JSON.stringify(mapping), signal });
 export const setPleadingSettings = (jobId: string, settings: PleadingSettings) => request<Job>(`/api/v1/jobs/${jobId}/pleading-settings`, { method: "PUT", body: JSON.stringify(settings) });
 export const readyForReview = (jobId: string, acknowledgedIssueCodes: string[]) => request<Job>(`/api/v1/jobs/${jobId}/review`, { method: "POST", body: JSON.stringify({ acknowledged_issue_codes: acknowledgedIssueCodes }) });
 export const getPreview = (jobId: string, signal?: AbortSignal) => request<Preview>(`/api/v1/jobs/${jobId}/preview?limit=5`, { signal });

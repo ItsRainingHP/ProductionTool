@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import csv
 import json
 import time
 from pathlib import Path
@@ -17,6 +18,7 @@ from app.processor import (
     analyze_csv,
     build_artifact_preview,
     build_preview,
+    count_privilege_blank_cells,
     detect_platform,
     escape_formula,
     iter_privilege_output_rows,
@@ -140,8 +142,131 @@ def test_rfp_ranges_match_manifest(fixture: dict) -> None:
 def test_bates_shortening() -> None:
     assert shorten_bates("TEST_000001", "TEST_001234") == "TEST_000001-1234"
     assert shorten_bates("TEST_001293", "TEST_001294") == "TEST_001293-1294"
+    assert shorten_bates("TEST_013473", "TEST_015869") == "TEST_013473-15869"
+    assert shorten_bates("TEST_13473", "TEST_15869") == "TEST_13473-15869"
+    assert shorten_bates("TEST_100000", "TEST_100001") == "TEST_100000-100001"
     assert shorten_bates("TEST_000001", "TEST_000001") == "TEST_000001"
     assert shorten_bates("A0001", "B0002") == "A0001-B0002"
+
+
+def test_large_end_bates_ranges_in_pleading_preview_and_download(tmp_path: Path) -> None:
+    source = CORPUS / "generated/logikcull/pleading/valid/lc_pleading_feature_large_end_ranges.csv"
+    analysis = analyze_csv(source, source.name)
+    assert classify(analysis) == "valid"
+    assert analysis.detected_workflow == "rfp_ranges"
+
+    _, rows, skipped = rfp_output_rows(source, analysis)
+    assert skipped == 0
+    assert rows == [
+        ["RFP 01", "SYNBATES_013473", "SYNBATES_015869"],
+        ["RFP 02", "SYNBATES_13473", "SYNBATES_15869"],
+        ["RFP 03", "SYNBATES_100000", "SYNBATES_100001"],
+        ["RFP 04", "SYNBATES_001293", "SYNBATES_001294"],
+    ]
+    expected_text = (
+        "RFP 01\r\nSYNBATES_013473-15869\r\n\r\n"
+        "RFP 02\r\nSYNBATES_13473-15869\r\n\r\n"
+        "RFP 03\r\nSYNBATES_100000-100001\r\n\r\n"
+        "RFP 04\r\nSYNBATES_001293-1294\r\n"
+    )
+    preview = build_preview(source, analysis, "rfp_ranges", None)
+    assert preview.text == expected_text
+    assert preview.rows == [
+        ["RFP 01", "SYNBATES_013473-15869"],
+        ["RFP 02", "SYNBATES_13473-15869"],
+        ["RFP 03", "SYNBATES_100000-100001"],
+        ["RFP 04", "SYNBATES_001293-1294"],
+    ]
+
+    output = tmp_path / "ranges.txt"
+    stats = write_output(output, source, analysis, "rfp_ranges", None, 0)
+    assert stats.output_rows == 4
+    assert output.read_bytes() == expected_text.encode("utf-8")
+    assert (
+        build_artifact_preview(
+            output, "rfp_ranges", stats, artifact_sha256="a" * 64, configuration_revision=1, review_token="b" * 64
+        ).text
+        == expected_text
+    )
+
+
+def test_privilege_blank_counts_follow_output_transforms(tmp_path: Path) -> None:
+    source = tmp_path / "privilege-blanks.csv"
+    source.write_text(
+        "Begin Bates,End Bates,Author,Recipient\n"
+        "TEST0001,TEST0002,Alice,\n"
+        "TEST0003,TEST0004,,Bob\n"
+        "TEST0005,TEST0006,,  \n",
+        encoding="utf-8",
+    )
+    mapping = MappingConfig.model_validate({"columns": [
+        {"id": "direct", "name": "Author", "source_fields": ["Author"]},
+        {"id": "fill", "name": "Best person", "source_fields": ["Author", "Recipient"],
+         "transform": {"kind": "fill"}},
+        {"id": "join", "name": "People", "source_fields": ["Author", "Recipient"],
+         "transform": {"kind": "delimit", "delimiter": "; "}},
+        {"id": "range", "name": "Range", "source_fields": ["Begin Bates", "End Bates"],
+         "transform": {"kind": "shorten_bates"}},
+    ]})
+
+    report = count_privilege_blank_cells(source, mapping)
+    assert report.output_rows == 3
+    assert report.blank_cells == [2, 1, 1, 0]
+
+
+def test_logikcull_true_blank_flags_use_headers_in_direct_and_join(tmp_path: Path) -> None:
+    source = CORPUS / "generated/logikcull/privilege/valid/lc_privilege_feature_true_blank_flags.csv"
+    analysis = analyze_csv(source, source.name)
+    assert analysis.platform == "logikcull"
+    assert analysis.true_blank_headers == ["Attorney Client", "Work Product"]
+    mapping = MappingConfig.model_validate({"columns": [
+        {"id": "direct", "name": "Direct", "source_fields": ["Attorney Client"]},
+        {"id": "join", "name": "Joined", "source_fields": ["Attorney Client", "Work Product"],
+         "transform": {"kind": "delimit", "delimiter": "; "}},
+        {"id": "mixed", "name": "Mixed Notes", "source_fields": ["Mixed Notes"]},
+        {"id": "empty", "name": "Empty Flag", "source_fields": ["Empty Flag"]},
+    ]})
+    expected = [
+        ["Attorney Client", "Attorney Client", "TRUE", ""],
+        ["", "Work Product", "Contains a TRUE marker", ""],
+        ["Attorney Client", "Attorney Client; Work Product", "TRUE", ""],
+    ]
+    assert list(iter_privilege_output_rows(source, mapping, analysis)) == expected
+    assert build_preview(source, analysis, "privilege_log", mapping).rows == expected
+    assert count_privilege_blank_cells(source, mapping, analysis).blank_cells == [1, 0, 0, 3]
+
+    output = tmp_path / "privilege-output.csv"
+    write_output(output, source, analysis, "privilege_log", mapping, 0)
+    with output.open(encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.reader(handle))
+    assert rows == [["Direct", "Joined", "Mixed Notes", "Empty Flag"], *expected]
+
+
+def test_true_blank_header_conversion_depends_on_source_platform(tmp_path: Path) -> None:
+    source = tmp_path / "everlaw-privilege.csv"
+    source.write_text(
+        "Begin Bates num from SYNTHETIC,End Bates num from SYNTHETIC,Attorney Client\n"
+        "SYN_0001,SYN_0001,TRUE\n",
+        encoding="utf-8",
+    )
+    analysis = analyze_csv(source, source.name)
+    assert analysis.platform == "everlaw"
+    assert analysis.true_blank_headers == []
+    mapping = MappingConfig.model_validate({"columns": [
+        {"id": "direct", "name": "Direct", "source_fields": ["Attorney Client"]}
+    ]})
+    assert list(iter_privilege_output_rows(source, mapping, analysis)) == [["TRUE"]]
+
+    logikcull = tmp_path / "logikcull-with-rfp.csv"
+    logikcull.write_text(
+        "Bates/Control #,End Bates/Control #,RFP: RFP 01,Attorney Client\n"
+        "SYN_0001,SYN_0001,TRUE,TRUE\n",
+        encoding="utf-8",
+    )
+    logikcull_analysis = analyze_csv(logikcull, logikcull.name)
+    assert logikcull_analysis.detected_workflow == "rfp_ranges"
+    assert logikcull_analysis.true_blank_headers == ["RFP: RFP 01", "Attorney Client"]
+    assert list(iter_privilege_output_rows(logikcull, mapping, logikcull_analysis)) == [["Attorney Client"]]
 
 
 def test_privilege_preview_mapping() -> None:

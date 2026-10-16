@@ -17,6 +17,7 @@ const analysis: Analysis = {
   row_count: 2,
   column_count: 2,
   headers: ["Begin Bates", "End Bates"],
+  true_blank_headers: [],
   platform: "unknown",
   platform_confidence: 0,
   detected_workflow: "privilege_log",

@@ -7,10 +7,10 @@ All people, organizations, companies, government bodies, legal matters, document
 ## Contents
 
 - `reference-sanitized/`: ten synthetic reconstructions of the structural export families found in the original examples.
-- `generated/`: 102 fixtures covering Logikcull and Everlaw pleading/RFP and privilege-log workflows, including two focused personal-data and contact-normalization fixtures.
+- `generated/`: 104 fixtures covering Logikcull and Everlaw pleading/RFP and privilege-log workflows, including focused personal-data, contact-normalization, large Bates end-range, and TRUE/blank privilege flag fixtures.
 - `manifest.json`: the machine-readable source of truth for every fixture, its expected status, seeded conditions, expected contiguous RFP ranges, and production-wizard output statistics and hash.
 
-Each generated platform/type set contains 15 valid or edge-valid fixtures and 10 intentionally invalid fixtures. `validation_error` means the file is parseable CSV but violates structural or Bates rules. `parse_error` means byte decoding or strict CSV parsing should fail.
+Each generated platform/type set contains 15 valid or edge-valid fixtures and 10 intentionally invalid fixtures, with four additional focused fixtures. `validation_error` means the file is parseable CSV but violates structural or Bates rules. `parse_error` means byte decoding or strict CSV parsing should fail.
 
 ## Synthetic conventions
 
@@ -20,6 +20,7 @@ Each generated platform/type set contains 15 valid or edge-valid fixtures and 10
 - People, entities, subjects, filenames, RFP descriptions, and narratives are explicitly marked synthetic.
 - Valid pleading results in the manifest contain contiguous ranges only. Gaps and different prefixes remain separate.
 - Focused privilege fixtures cover quoted and angle-bracket contact forms, one-word usernames, advisory personal-data findings, and normalization/formula-escaping interactions.
+- The Logikcull TRUE/blank privilege fixture covers flag headings in Direct and Join output while preserving blank cells and ordinary text fields.
 
 Malformed files must not be opened and resaved by spreadsheet software because that can repair the intentionally seeded corruption.
 

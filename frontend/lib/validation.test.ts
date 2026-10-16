@@ -29,6 +29,7 @@ function analysis(issues: Issue[]): Analysis {
     row_count: 2,
     column_count: 3,
     headers: ["Begin Bates", "End Bates", "RFP"],
+    true_blank_headers: [],
     platform: "unknown",
     platform_confidence: 0,
     detected_workflow: "rfp_ranges",

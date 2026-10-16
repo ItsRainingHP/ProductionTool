@@ -60,6 +60,7 @@ class Analysis(BaseModel):
     row_count: int = 0
     column_count: int = 0
     headers: list[str] = Field(default_factory=list)
+    true_blank_headers: list[str] = Field(default_factory=list)
     platform: Platform = "unknown"
     platform_confidence: int = Field(default=0, ge=0, le=100)
     detected_workflow: DetectedWorkflow = "unknown"
@@ -118,6 +119,11 @@ class MappingConfig(BaseModel):
         if len(names) != len(set(names)):
             raise ValueError("Output column names must be unique")
         return self
+
+
+class MappingBlankReport(BaseModel):
+    blank_cells: list[int]
+    output_rows: int
 
 
 class WorkflowUpdate(BaseModel):

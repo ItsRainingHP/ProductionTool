@@ -24,6 +24,7 @@ from .models import (
     DetectedWorkflow,
     Issue,
     IssueSeverity,
+    MappingBlankReport,
     MappingConfig,
     OutputStats,
     PersonalDataCategory,
@@ -346,7 +347,8 @@ def shorten_bates(begin_value: str, end_value: str) -> str:
         if left != right:
             break
         shared += 1
-    suffix_length = max(width - shared, min(4, width))
+    # Keep every significant end digit so a range above 9999 is never displayed as a four-digit ending.
+    suffix_length = max(width - shared, min(4, width), len(str(end.number)))
     shortened_end = end_number[-suffix_length:]
     return f"{full_begin}-{shortened_end}"
 
@@ -522,6 +524,8 @@ def analyze_csv(
     end_indices: list[int] = []
     combined_rfp_index: int | None = None
     separate_rfp: dict[int, str] = {}
+    true_blank_candidates: set[int] = set()
+    true_blank_seen: set[int] = set()
     personal_counts: dict[str, int] = defaultdict(int)
     personal_columns: dict[str, set[str]] = defaultdict(set)
     try:
@@ -533,6 +537,7 @@ def analyze_csv(
                 close_range_store()
                 return Analysis(filename=filename, size_bytes=size, issues=[_make_issue("empty_file")])
             personal_profiles = [personal_data_profile(header) for header in headers]
+            true_blank_candidates = set(range(len(headers)))
             normalized_positions: dict[str, list[int]] = defaultdict(list)
             for position, header in enumerate(headers, start=1):
                 normalized = normalize_header(header)
@@ -569,6 +574,12 @@ def analyze_csv(
                 if len(row) != len(headers):
                     record_issue(_make_issue("uneven_row_width", row=row_number))
                     continue
+                for index, value in enumerate(row):
+                    normalized_value = value.strip().casefold()
+                    if normalized_value == "true":
+                        true_blank_seen.add(index)
+                    elif normalized_value:
+                        true_blank_candidates.discard(index)
                 if not begin_indices or not end_indices:
                     continue
                 begin_raw = row[begin_indices[0]].strip()
@@ -636,6 +647,11 @@ def analyze_csv(
         record_issue(_make_issue("no_data_rows"))
     platform, platform_confidence = detect_platform(headers)
     workflow: DetectedWorkflow = "rfp_ranges" if combined_rfp_index is not None or separate_rfp else "privilege_log"
+    true_blank_headers = (
+        [header for index, header in enumerate(headers) if index in true_blank_candidates & true_blank_seen]
+        if platform == "logikcull"
+        else []
+    )
     gap_count = 0
     current_key: tuple[str, str, int] | None = None
     merged_end: int | None = None
@@ -673,6 +689,7 @@ def analyze_csv(
         row_count=row_count,
         column_count=len(headers),
         headers=headers,
+        true_blank_headers=true_blank_headers,
         platform=platform,
         platform_confidence=platform_confidence,
         detected_workflow=workflow,
@@ -820,22 +837,49 @@ def rfp_output_rows(path: Path, analysis: Analysis) -> tuple[list[str], list[lis
     return ["RFP", "Begin Bates", "End Bates"], output, skipped
 
 
-def iter_privilege_output_rows(path: Path, mapping: MappingConfig) -> Iterator[list[str]]:
+def _flag_header_value(field: str, value: str, flag_headers: set[str]) -> str:
+    return field if field in flag_headers and value.strip().casefold() == "true" else value
+
+
+def iter_privilege_output_rows(
+    path: Path, mapping: MappingConfig, analysis: Analysis | None = None
+) -> Iterator[list[str]]:
+    flag_headers = set(analysis.true_blank_headers) if analysis else set()
     for row in _iter_dict_rows(path):
         result: list[str] = []
         for column in mapping.columns:
             values = [row.get(field, "") for field in column.source_fields]
             if column.transform.kind == "none":
-                result.append(values[0])
+                result.append(_flag_header_value(column.source_fields[0], values[0], flag_headers))
             elif column.transform.kind == "shorten_bates":
                 result.append(shorten_bates(values[0], values[1]))
             elif column.transform.kind == "fill":
                 result.append(next((value for value in values if value.strip()), ""))
             else:
-                result.append((column.transform.delimiter or "; ").join(value for value in values if value.strip()))
+                joined_values = [
+                    _flag_header_value(field, value, flag_headers)
+                    for field, value in zip(column.source_fields, values, strict=True)
+                ]
+                result.append(
+                    (column.transform.delimiter or "; ").join(value for value in joined_values if value.strip())
+                )
             if column.normalize:
                 result[-1] = normalize_contact_value(result[-1])
         yield result
+
+
+def count_privilege_blank_cells(
+    path: Path, mapping: MappingConfig, analysis: Analysis | None = None
+) -> MappingBlankReport:
+    """Count empty output cells using the same transforms as preview and CSV output."""
+    counts = [0] * len(mapping.columns)
+    output_rows = 0
+    for row in iter_privilege_output_rows(path, mapping, analysis):
+        output_rows += 1
+        for index, value in enumerate(row):
+            if not value.strip():
+                counts[index] += 1
+    return MappingBlankReport(blank_cells=counts, output_rows=output_rows)
 
 
 def rfp_preview_rows(rows: Iterable[list[str]]) -> list[list[str]]:
@@ -950,7 +994,7 @@ def build_preview(
         escaped_headers = [escape_formula(column.name) for column in mapping.columns]
         headers = [value for value, _ in escaped_headers]
         header_escapes = sum(int(changed) for _, changed in escaped_headers)
-        rows = islice(iter_privilege_output_rows(path, mapping), limit)
+        rows = islice(iter_privilege_output_rows(path, mapping, analysis), limit)
         skipped = sum(issue.count for issue in analysis.issues if issue.code == "uneven_row_width")
         total_rows = analysis.row_count - sum(
             issue.count for issue in analysis.issues if issue.code == "uneven_row_width"
@@ -1094,7 +1138,7 @@ def write_output(
     elif mapping:
         escaped_headers = [escape_formula(column.name) for column in mapping.columns]
         headers = [header for header, _ in escaped_headers]
-        rows = iter_privilege_output_rows(source, mapping)
+        rows = iter_privilege_output_rows(source, mapping, analysis)
         skipped = sum(issue.count for issue in analysis.issues if issue.code == "uneven_row_width")
     else:
         raise ValueError("A privilege mapping is required")

@@ -9,12 +9,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Button, Checkbox, Column, Heading, Input, Row, Tag, Text } from "@once-ui-system/core";
-import type { OutputColumn, TransformKind } from "@/lib/types";
+import { inspectMappingBlanks } from "@/lib/api";
+import type { MappingBlankReport, OutputColumn, TransformKind } from "@/lib/types";
 
 const TRANSFORMS: Array<{ kind: TransformKind; label: string; help: string }> = [
-  { kind: "none", label: "Direct", help: "Copy the selected source field without changing it." },
+  { kind: "none", label: "Direct", help: "Copy the source value. A Logikcull TRUE flag becomes its column heading." },
   { kind: "shorten_bates", label: "Bates range", help: "Combine exactly two Bates fields into a shortened range." },
-  { kind: "delimit", label: "Join", help: "Combine populated source fields using the chosen separator." },
+  { kind: "delimit", label: "Join", help: "Combine populated fields. Logikcull TRUE flags contribute their column headings." },
   { kind: "fill", label: "Fill", help: "Use the first populated source field, checking them in the order shown." },
 ];
 
@@ -44,7 +45,7 @@ function SourceField({ field, selected, usedCount, onSelect, onBeginDrag }: { fi
   return (
     <Button
       type="button"
-      variant={selected ? "primary" : "secondary"}
+      variant="secondary"
       size="s"
       fillWidth
       horizontal="start"
@@ -54,9 +55,11 @@ function SourceField({ field, selected, usedCount, onSelect, onBeginDrag }: { fi
       onTouchStart={onBeginDrag}
       aria-pressed={selected}
     >
+      <span className={`source-count ${usedCount ? "is-used" : ""}`} aria-label={usedCount ? `Used in ${usedCount} output columns` : "Unused"}>
+        {usedCount || "+"}
+      </span>
+      <span className="source-name">{field}</span>
       <span className="source-grip" aria-hidden>⋮⋮</span>
-      <span>{field}</span>
-      <span className="source-add" aria-label={usedCount ? `Used in ${usedCount} output columns` : "Unused"}>{usedCount ? `${usedCount}×` : "+"}</span>
     </Button>
   );
 }
@@ -78,10 +81,12 @@ function ColumnDropZone({ active, draggedField, onDropField, children }: { activ
   );
 }
 
-export function MappingEditor({ headers, columns, onChange }: { headers: string[]; columns: OutputColumn[]; onChange: (columns: OutputColumn[]) => void }) {
+export function MappingEditor({ jobId, headers, columns, onChange }: { jobId?: string; headers: string[]; columns: OutputColumn[]; onChange: (columns: OutputColumn[]) => void }) {
   const [selectedField, setSelectedField] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [draggedField, setDraggedField] = useState<string | null>(null);
+  const [blankCheck, setBlankCheck] = useState<{ signature: string; report: MappingBlankReport } | null>(null);
+  const [blankCheckError, setBlankCheckError] = useState<string | null>(null);
   const usage = useMemo(() => {
     const counts = new Map<string, number>();
     columns.flatMap((column) => column.source_fields).forEach((field) => counts.set(field, (counts.get(field) ?? 0) + 1));
@@ -90,6 +95,27 @@ export function MappingEditor({ headers, columns, onChange }: { headers: string[
   const available = headers;
   const filteredAvailable = available.filter((header) => header.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
   const incompleteColumns = columns.filter((column) => !column.name.trim() || !column.source_fields.length || !validTransform(column.transform, column.source_fields.length));
+  const inspectedColumns = columns
+    .filter((column) => column.source_fields.length && validTransform(column.transform, column.source_fields.length)
+      && (column.transform.kind !== "delimit" || Boolean(column.transform.delimiter))
+      && column.source_fields.every((field) => headers.includes(field)))
+    .map((column, index) => ({ ...column, name: `Output ${index + 1}` }));
+  const blankCheckSignature = JSON.stringify(inspectedColumns);
+  const currentBlankCheck = blankCheck?.signature === blankCheckSignature ? blankCheck.report : null;
+  const blankCounts = new Map(inspectedColumns.map((column, index) => [column.id, currentBlankCheck?.blank_cells[index] ?? 0]));
+
+  useEffect(() => {
+    if (!jobId || blankCheckSignature === "[]") return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      inspectMappingBlanks(jobId, { columns: JSON.parse(blankCheckSignature) as OutputColumn[] }, controller.signal)
+        .then((report) => { setBlankCheck({ signature: blankCheckSignature, report }); setBlankCheckError(null); })
+        .catch(() => {
+          if (!controller.signal.aborted) setBlankCheckError(blankCheckSignature);
+        });
+    }, 400);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [jobId, blankCheckSignature]);
 
   useEffect(() => {
     const finishDrag = () => setDraggedField(null);
@@ -210,9 +236,12 @@ export function MappingEditor({ headers, columns, onChange }: { headers: string[
               {incompleteColumns.length ? `${incompleteColumns.length} column${incompleteColumns.length === 1 ? "" : "s"} need attention` : "Mapping ready"}
             </Tag>
           </Row>
+          {jobId && blankCheckSignature !== "[]" && !currentBlankCheck && blankCheckError !== blankCheckSignature && <Text variant="body-default-xs" onBackground="neutral-weak">Checking output columns for blank cells…</Text>}
+          {jobId && blankCheckError === blankCheckSignature && !currentBlankCheck && <Text variant="body-default-xs" onBackground="warning-medium">Blank-cell check unavailable. Review the output before finalizing.</Text>}
 
           {columns.map((column, index) => {
             const transform = TRANSFORMS.find((item) => item.kind === column.transform.kind) ?? TRANSFORMS[0];
+            const blankCount = currentBlankCheck ? blankCounts.get(column.id) ?? 0 : 0;
             return (
               <Column key={column.id} background="surface" border="neutral-alpha-weak" radius="l" padding="20" gap="16" className="mapping-column-card">
                 <Row fillWidth gap="12" vertical="center" s={{ direction: "column", vertical: "stretch" }}>
@@ -229,6 +258,13 @@ export function MappingEditor({ headers, columns, onChange }: { headers: string[
                     <Button aria-label={`Remove ${column.name}`} variant="danger" size="s" onClick={() => onChange(columns.filter((item) => item.id !== column.id))}>Remove</Button>
                   </Row>
                 </Row>
+
+                {blankCount > 0 && (
+                  <Row role="status" gap="8" vertical="center" wrap>
+                    <Tag variant="warning">{blankCount.toLocaleString()} blank output cell{blankCount === 1 ? "" : "s"}</Tag>
+                    <Text variant="body-default-xs" onBackground="neutral-weak">This column will be empty in {blankCount.toLocaleString()} of {currentBlankCheck?.output_rows.toLocaleString()} rows.</Text>
+                  </Row>
+                )}
 
                 <ColumnDropZone active={Boolean(selectedField || draggedField)} draggedField={draggedField} onDropField={(field) => assignField(column.id, field)}>
                   <Column gap="12">
