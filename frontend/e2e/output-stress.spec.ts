@@ -35,6 +35,7 @@ for (const scenario of cases) {
       await page.goto("/wizard");
       await page.getByLabel("Upload source CSV").setInputFiles(source);
       await expect(page.getByRole("heading", { name: "Choose the output" })).toBeVisible();
+      await expect(page).toHaveURL(/\/wizard\/[0-9a-f-]+\/data$/);
       jobId = new URL(page.url()).pathname.split("/")[2];
       const analyzed = await (await request.get(`/api/v1/jobs/${jobId}`)).json();
       expect(analyzed.analysis.platform).toBe(scenario.platform);

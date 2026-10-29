@@ -89,6 +89,7 @@ test("Advanced draft survives browser Back, Forward, and refresh in one tab", as
   await expect(page.getByRole("heading", { name: "Choose the output" })).toBeVisible();
   await page.goForward();
   await expect(page.getByRole("button", { name: "Semicolon" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page).toHaveURL(/\/advanced$/);
   await page.reload();
   await expect(page.getByRole("button", { name: "Semicolon" })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Discard draft" }).click();
@@ -129,6 +130,7 @@ for (const enabled of [true, false]) {
     await expect(page.getByRole("heading", { name: "Choose the output" })).toBeVisible();
     await page.goForward();
     await expect(checkbox).not.toBeChecked();
+    await expect(page).toHaveURL(/\/advanced$/);
     await page.reload();
     await expect(checkbox).not.toBeChecked();
     await page.getByRole("button", { name: "Discard draft" }).click();
@@ -139,6 +141,8 @@ for (const enabled of [true, false]) {
     await expect(page.getByRole("cell", { name: enabled ? "Attorney Client" : "Contains a TRUE marker", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Previous" }).click();
     await expect(checkbox).toBeChecked({ checked: enabled });
+    // The view updates before Next commits the URL; reload the Advanced route.
+    await expect(page).toHaveURL(/\/advanced$/);
     await page.reload();
     await expect(checkbox).toBeChecked({ checked: enabled });
     await page.getByRole("button", { name: "Review output" }).click();
