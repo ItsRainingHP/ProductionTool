@@ -12,6 +12,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def pinned_requirements(path: Path) -> dict[str, str]:
+    pins = re.findall(
+        r"^([\w.-]+)(?:\[[^]]+\])?==([^\s;\\]+)", path.read_text(encoding="utf-8"), flags=re.MULTILINE
+    )
+    return {re.sub(r"[-_.]+", "-", name).lower(): version for name, version in pins}
+
+
 def require_match(pattern: str, text: str, description: str) -> str:
     match = re.search(pattern, text, flags=re.MULTILINE)
     if not match:
@@ -75,6 +82,22 @@ def main() -> None:
         reference = image["reference"]
         if f"FROM {reference}" not in dockerfile:
             raise SystemExit(f"Release metadata check failed: Dockerfile does not use pinned base {reference}")
+
+    for name, version in metadata["runtime_packages"].items():
+        if f"{name}={version}" not in dockerfile:
+            raise SystemExit(f"Release metadata check failed: Dockerfile does not pin {name}={version}")
+
+    production_pins = pinned_requirements(ROOT / "backend" / "requirements.lock")
+    development_pins = pinned_requirements(ROOT / "backend" / "requirements-dev.lock")
+    if not production_pins or not development_pins:
+        raise SystemExit("Release metadata check failed: Python dependency lockfile is empty")
+    for filename, lock in (("requirements.txt", production_pins), ("requirements-dev.txt", development_pins)):
+        for name, version in pinned_requirements(ROOT / "backend" / filename).items():
+            if lock.get(name) != version:
+                raise SystemExit(f"Release metadata check failed: {filename} {name}=={version} differs from lockfile")
+    for name, version in production_pins.items():
+        if development_pins.get(name) != version:
+            raise SystemExit(f"Release metadata check failed: production/development locks differ for {name}")
 
     if metadata["license"] != "MIT" or metadata["data_handling_model"] != "transient-processing-external-archive":
         raise SystemExit("Release metadata check failed: license or data-handling model changed without review")

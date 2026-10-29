@@ -1,5 +1,7 @@
 .git
 .gitignore
+.codex-remote-attachments
+.venv
 .env
 .env.*
 .idea

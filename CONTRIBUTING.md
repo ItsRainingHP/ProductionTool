@@ -12,6 +12,8 @@ python -m pip install -r requirements-dev.txt
 python -m pytest
 ```
 
+Regenerate both Python lockfiles together on Linux under Python 3.14 after changing dependency inputs. Their shared production packages must match. Linux CI installs `requirements-dev.lock` with `--require-hashes`; Windows development uses the input file to resolve platform-specific dependencies. Run `python deploy/verify_release_metadata.py` from the repository root and audit the complete Linux development lock with `python -m pip_audit -r backend/requirements-dev.lock`.
+
 Install the frontend dependencies and run its checks:
 
 ```powershell
@@ -23,6 +25,8 @@ npm run check:unused
 npm run test
 npm run build
 ```
+
+Run `npm audit --audit-level=low` for the full frontend dependency graph. Production images must pass the configured Trivy scan at every severity with unfixed findings included. Verify the installed SQLite, Node, Python, and locked package versions with `docker exec <container> python /app/verify_runtime.py`.
 
 Changes to CSV handling or fixtures must also run the complete production lifecycle validation:
 
