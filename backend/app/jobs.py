@@ -327,7 +327,13 @@ class JobStore:
         # Only the canonical server-generated UUID form can become a path component.
         if not re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", job_id):
             raise HTTPException(404, "Job not found")
-        directory = self.root / job_id
+        root_path = os.path.realpath(self.root)
+        directory_path = os.path.realpath(self.root / job_id)
+        if not directory_path.startswith(os.path.join(root_path, "")):
+            raise HTTPException(404, "Job not found")
+        if directory_path != os.path.join(root_path, job_id):
+            raise HTTPException(404, "Job not found")
+        directory = Path(directory_path)
         if require_exists and not directory.is_dir():
             raise HTTPException(404, "Job not found")
         return directory

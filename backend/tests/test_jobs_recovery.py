@@ -253,6 +253,27 @@ def test_job_directory_rejects_noncanonical_ids_before_filesystem_access(
     assert rejected.value.status_code == 404
 
 
+@pytest.mark.parametrize("outside_root", [True, False])
+def test_job_directory_rejects_symlink_escape_and_cross_job_aliases(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, outside_root: bool,
+) -> None:
+    root = tmp_path / "jobs"
+    store = store_at(monkeypatch, root)
+    destination = tmp_path / "jobs-other" if outside_root else root / str(jobs_module.uuid.uuid4())
+    destination.mkdir()
+    source = destination / "source.csv"
+    source.write_bytes(b"protected synthetic data")
+    job_id = str(jobs_module.uuid.uuid4())
+    try:
+        (root / job_id).symlink_to(destination, target_is_directory=True)
+    except OSError:
+        pytest.skip("Creating directory symlinks requires additional permissions on this platform")
+    with pytest.raises(HTTPException) as rejected:
+        store._directory(job_id)
+    assert rejected.value.status_code == 404
+    assert source.read_bytes() == b"protected synthetic data"
+
+
 def test_expired_cleanup_keeps_live_worker_until_lease_ends(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
 ) -> None:
