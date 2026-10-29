@@ -228,6 +228,31 @@ def test_unavailable_artifacts_and_invalid_job_ids_are_reported(
     assert nonexistent.value.status_code == 404
 
 
+@pytest.mark.parametrize("unsafe_id", [
+    "../outside", "..\\outside", "/outside", "C:\\outside", ".", "..",
+    "73bf2456-a880-4bdd-b047-e68415c34d15/../../outside",
+    "73bf2456-a880-4bdd-b047-e68415c34d15\\..\\outside",
+    "73bf2456-a880-4bdd-b047-e68415c34d15%2f..%2foutside",
+    "urn:uuid:73bf2456-a880-4bdd-b047-e68415c34d15",
+    "{73bf2456-a880-4bdd-b047-e68415c34d15}",
+    "73bf2456a8804bddb047e68415c34d15",
+    "73BF2456-A880-4BDD-B047-E68415C34D15",
+    "73bf2456-a880-4bdd-b047-e68415c34d15\n",
+])
+def test_job_directory_rejects_noncanonical_ids_before_filesystem_access(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, unsafe_id: str,
+) -> None:
+    store = store_at(monkeypatch, tmp_path)
+
+    def unexpected_directory_access(_path: Path) -> bool:
+        raise AssertionError("An unsafe job ID reached filesystem access")
+
+    monkeypatch.setattr(Path, "is_dir", unexpected_directory_access)
+    with pytest.raises(HTTPException) as rejected:
+        store._directory(unsafe_id)
+    assert rejected.value.status_code == 404
+
+
 def test_expired_cleanup_keeps_live_worker_until_lease_ends(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
 ) -> None:

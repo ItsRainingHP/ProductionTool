@@ -324,10 +324,9 @@ class JobStore:
         return result
 
     def _directory(self, job_id: str, *, require_exists: bool = True) -> Path:
-        try:
-            uuid.UUID(job_id)
-        except ValueError as exc:
-            raise HTTPException(404, "Job not found") from exc
+        # Only the canonical server-generated UUID form can become a path component.
+        if not re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", job_id):
+            raise HTTPException(404, "Job not found")
         directory = self.root / job_id
         if require_exists and not directory.is_dir():
             raise HTTPException(404, "Job not found")
