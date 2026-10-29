@@ -8,6 +8,8 @@ Production Tool converts Everlaw and Logikcull CSV exports into formatted RFP/pl
 - Validates CSV structure, encoding, required Bates fields, ranges, gaps, and duplicates before output is generated.
 - Groups shortened, contiguous Bates ranges beneath each RFP heading.
 - Builds privilege logs with direct fields, shortened Bates ranges, delimited combinations, and ordered first-nonblank fallback fields.
+- Uses unpadded ending numbers in shortened Bates ranges, for example `EXAMPLE_000001-92`.
+- Replaces Logikcull privilege cells containing the standalone word `TRUE` with their source heading, excluding a leading `Tag:`, before Direct, Join, or Fill. This Advanced option defaults to enabled and can be turned off for each job.
 - Provides configurable pleading separators and an optional final “and.”
 - Reports advisory-only findings for possible Social Security numbers, dates of birth, consumer email domains, and one-word names or usernames in people fields.
 - Optionally normalizes contact text while protecting generated CSV cells from spreadsheet-formula execution.

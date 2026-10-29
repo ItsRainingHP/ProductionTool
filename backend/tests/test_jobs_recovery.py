@@ -287,6 +287,22 @@ def configured_rfp(store: JobStore) -> str:
     return created.job_id
 
 
+@pytest.mark.parametrize("enabled", [True, False])
+def test_true_replacement_choice_survives_catalog_reload(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, enabled: bool,
+) -> None:
+    store = store_at(monkeypatch, tmp_path)
+    job_id = configured_rfp(store)
+    store.set_workflow(job_id, "privilege_log")
+    mapping = MappingConfig.model_validate({"columns": [
+        {"id": "begin", "name": "Begin", "source_fields": ["Begin Bates"]},
+    ], "replace_true_with_header": enabled})
+    store.set_mapping(job_id, mapping)
+    restored = store_at(monkeypatch, tmp_path).get(job_id)
+    assert restored.mapping is not None
+    assert restored.mapping.replace_true_with_header is enabled
+
+
 def reviewed_rfp(store: JobStore) -> str:
     job_id = configured_rfp(store)
     staged = store.root / job_id / "staged.txt"

@@ -112,6 +112,7 @@ class OutputColumn(BaseModel):
 
 class MappingConfig(BaseModel):
     columns: list[OutputColumn] = Field(min_length=1, max_length=100)
+    replace_true_with_header: bool = True
 
     @model_validator(mode="after")
     def unique_names_and_assignments(self) -> MappingConfig:

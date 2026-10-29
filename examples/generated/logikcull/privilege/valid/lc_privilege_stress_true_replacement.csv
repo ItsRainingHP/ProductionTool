@@ -1,0 +1,14 @@
+Bates/Control #,End Bates/Control #,Tag: Attorney Client,tag: Work Product,Subject,Tag: =Synthetic Formula,Tag:,Filename
+SYNPRIV_0000001,SYNPRIV_0000092,TRUE,Contains a TRUE marker,Synthetic fallback one,TRUE,TRUE,synthetic_stress_01.txt
+SYNPRIV_0000093,SYNPRIV_0001596,prefix (tRuE) suffix,(TRUE),Synthetic fallback two,(TrUe),,synthetic_stress_02.txt
+SYNPRIV_0001597,SYNPRIV_0001598,TRUETYPE,untrue,Synthetic unchanged words,,,synthetic_stress_03.txt
+SYNPRIV_0001599,SYNPRIV_0001600,, true ,Synthetic fallback four,=1+1,,synthetic_stress_04.txt
+SYNPRIV_0001601,SYNPRIV_0001601,,,TRUE in synthetic narrative,,TRUE,synthetic_stress_05.txt
+SYNPRIV_0009999,SYNPRIV_0010000,"""TRUE""",FALSE,"Synthetic multiline
+TRUE marker",TRUE,,synthetic_stress_06.txt
+SYNPRIV_0013473,SYNPRIV_0015869,TRUE-ish,not TRUE.,,,,synthetic_stress_07.txt
+SYNPRIV_0100000,SYNPRIV_0100001,TRUE_value,truth,,,,synthetic_stress_08.txt
+SYNPRIV_0200000,SYNPRIV_0200001,,,Synthetic plain fallback,,,synthetic_stress_09.txt
+SYNPRIV_0300000,SYNPRIV_0300001,"TRUE, FALSE",true,TRUE,FALSE,,synthetic_stress_10.txt
+SYNPRIV_0400000,SYNPRIV_0400001, true ,Contains true; marker,,,,synthetic_stress_11.txt
+SYNPRIV_0999999,SYNPRIV_1000000,,,,,,synthetic_stress_12.txt

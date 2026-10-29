@@ -10,13 +10,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button, Checkbox, Column, Heading, Input, Row, Tag, Text } from "@once-ui-system/core";
 import { inspectMappingBlanks } from "@/lib/api";
-import type { MappingBlankReport, OutputColumn, TransformKind } from "@/lib/types";
+import type { MappingBlankReport, MappingConfig, OutputColumn, TransformKind } from "@/lib/types";
 
 const TRANSFORMS: Array<{ kind: TransformKind; label: string; help: string }> = [
-  { kind: "none", label: "Direct", help: "Copy the source value. A Logikcull TRUE flag becomes its column heading." },
+  { kind: "none", label: "Direct", help: "Copy the source value after any enabled TRUE replacement." },
   { kind: "shorten_bates", label: "Bates range", help: "Combine exactly two Bates fields into a shortened range." },
-  { kind: "delimit", label: "Join", help: "Combine populated fields. Logikcull TRUE flags contribute their column headings." },
-  { kind: "fill", label: "Fill", help: "Use the first populated source field, checking them in the order shown." },
+  { kind: "delimit", label: "Join", help: "Combine populated fields after any enabled TRUE replacement." },
+  { kind: "fill", label: "Fill", help: "Use the first populated source field after any enabled TRUE replacement, checking them in the order shown." },
 ];
 
 const DELIMITERS: Array<{ value: OutputColumn["transform"]["delimiter"]; label: string }> = [
@@ -81,7 +81,7 @@ function ColumnDropZone({ active, draggedField, onDropField, children }: { activ
   );
 }
 
-export function MappingEditor({ jobId, headers, columns, onChange }: { jobId?: string; headers: string[]; columns: OutputColumn[]; onChange: (columns: OutputColumn[]) => void }) {
+export function MappingEditor({ jobId, headers, columns, replaceTrueWithHeader = true, onChange }: { jobId?: string; headers: string[]; columns: OutputColumn[]; replaceTrueWithHeader?: boolean; onChange: (columns: OutputColumn[]) => void }) {
   const [selectedField, setSelectedField] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [draggedField, setDraggedField] = useState<string | null>(null);
@@ -100,15 +100,16 @@ export function MappingEditor({ jobId, headers, columns, onChange }: { jobId?: s
       && (column.transform.kind !== "delimit" || Boolean(column.transform.delimiter))
       && column.source_fields.every((field) => headers.includes(field)))
     .map((column, index) => ({ ...column, name: `Output ${index + 1}` }));
-  const blankCheckSignature = JSON.stringify(inspectedColumns);
+  const blankCheckSignature = inspectedColumns.length
+    ? JSON.stringify({ columns: inspectedColumns, replace_true_with_header: replaceTrueWithHeader }) : "";
   const currentBlankCheck = blankCheck?.signature === blankCheckSignature ? blankCheck.report : null;
   const blankCounts = new Map(inspectedColumns.map((column, index) => [column.id, currentBlankCheck?.blank_cells[index] ?? 0]));
 
   useEffect(() => {
-    if (!jobId || blankCheckSignature === "[]") return;
+    if (!jobId || !blankCheckSignature) return;
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
-      inspectMappingBlanks(jobId, { columns: JSON.parse(blankCheckSignature) as OutputColumn[] }, controller.signal)
+      inspectMappingBlanks(jobId, JSON.parse(blankCheckSignature) as MappingConfig, controller.signal)
         .then((report) => { setBlankCheck({ signature: blankCheckSignature, report }); setBlankCheckError(null); })
         .catch(() => {
           if (!controller.signal.aborted) setBlankCheckError(blankCheckSignature);

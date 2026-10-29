@@ -214,7 +214,7 @@ def test_privilege_blank_counts_follow_output_transforms(tmp_path: Path) -> None
     assert report.blank_cells == [2, 1, 1, 0]
 
 
-def test_logikcull_true_blank_flags_use_headers_in_direct_and_join(tmp_path: Path) -> None:
+def test_logikcull_true_markers_use_headers_in_direct_and_join(tmp_path: Path) -> None:
     source = CORPUS / "generated/logikcull/privilege/valid/lc_privilege_feature_true_blank_flags.csv"
     analysis = analyze_csv(source, source.name)
     assert analysis.platform == "logikcull"
@@ -227,9 +227,9 @@ def test_logikcull_true_blank_flags_use_headers_in_direct_and_join(tmp_path: Pat
         {"id": "empty", "name": "Empty Flag", "source_fields": ["Empty Flag"]},
     ]})
     expected = [
-        ["Attorney Client", "Attorney Client", "TRUE", ""],
-        ["", "Work Product", "Contains a TRUE marker", ""],
-        ["Attorney Client", "Attorney Client; Work Product", "TRUE", ""],
+        ["Attorney Client", "Attorney Client", "Mixed Notes", ""],
+        ["", "Work Product", "Mixed Notes", ""],
+        ["Attorney Client", "Attorney Client; Work Product", "Mixed Notes", ""],
     ]
     assert list(iter_privilege_output_rows(source, mapping, analysis)) == expected
     assert build_preview(source, analysis, "privilege_log", mapping).rows == expected
@@ -267,6 +267,98 @@ def test_true_blank_header_conversion_depends_on_source_platform(tmp_path: Path)
     assert logikcull_analysis.detected_workflow == "rfp_ranges"
     assert logikcull_analysis.true_blank_headers == ["RFP: RFP 01", "Attorney Client"]
     assert list(iter_privilege_output_rows(logikcull, mapping, logikcull_analysis)) == [["Attorney Client"]]
+    for platform in ("everlaw", "unknown"):
+        other_analysis = logikcull_analysis.model_copy(update={"platform": platform})
+        assert list(iter_privilege_output_rows(logikcull, mapping, other_analysis)) == [["TRUE"]]
+
+
+def test_true_replacement_affects_blank_counts_and_fill_before_selection(tmp_path: Path) -> None:
+    source = tmp_path / "blank-heading.csv"
+    source.write_text(
+        "Bates/Control #,End Bates/Control #,Tag:,Fallback\nEXAMPLE_1,EXAMPLE_2,TRUE,Other\n", encoding="utf-8",
+    )
+    analysis = analyze_csv(source, source.name)
+    mapping = MappingConfig.model_validate({"columns": [
+        {"id": "direct", "name": "Direct", "source_fields": ["Tag:"]},
+        {"id": "fill", "name": "Fill", "source_fields": ["Tag:", "Fallback"], "transform": {"kind": "fill"}},
+    ]})
+    assert list(iter_privilege_output_rows(source, mapping, analysis)) == [["", "Other"]]
+    assert count_privilege_blank_cells(source, mapping, analysis).blank_cells == [1, 0]
+    mapping.replace_true_with_header = False
+    assert list(iter_privilege_output_rows(source, mapping, analysis)) == [["TRUE", "TRUE"]]
+    assert count_privilege_blank_cells(source, mapping, analysis).blank_cells == [0, 0]
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+def test_true_replacement_precedes_direct_join_fill_and_normalization(tmp_path: Path, enabled: bool) -> None:
+    source = tmp_path / "true-markers.csv"
+    source.write_text(
+        'Bates/Control #,End Bates/Control #,Tag: ATTORNEY CLIENT,tag: Work Product,Other,Tag: =Formula\n'
+        'EXAMPLE_000001,EXAMPLE_000092,Contains a TRUE marker,(TrUe),fallback,TRUE\n'
+        'EXAMPLE_000093,EXAMPLE_000094,TRUETYPE,FALSE,,\n'
+        'EXAMPLE_000095,EXAMPLE_000096,,  true  ,last,\n',
+        encoding="utf-8",
+    )
+    original = source.read_bytes()
+    analysis = analyze_csv(source, source.name)
+    assert analysis.platform == "logikcull"
+    mapping = MappingConfig.model_validate({"replace_true_with_header": enabled, "columns": [
+        {"id": "direct", "name": "Direct", "source_fields": ["Tag: ATTORNEY CLIENT"]},
+        {"id": "join", "name": "Join", "source_fields": ["Tag: ATTORNEY CLIENT", "tag: Work Product"],
+         "transform": {"kind": "delimit", "delimiter": "; "}},
+        {"id": "fill", "name": "Fill", "source_fields": ["Tag: ATTORNEY CLIENT", "tag: Work Product", "Other"],
+         "transform": {"kind": "fill"}},
+        {"id": "normalized", "name": "Normalized", "source_fields": ["Tag: ATTORNEY CLIENT"], "normalize": True},
+        {"id": "formula", "name": "Formula", "source_fields": ["Tag: =Formula"]},
+        {"id": "range", "name": "Range", "source_fields": ["Bates/Control #", "End Bates/Control #"],
+         "transform": {"kind": "shorten_bates"}},
+    ]})
+    rows = list(iter_privilege_output_rows(source, mapping, analysis))
+    if enabled:
+        assert rows[0] == ["ATTORNEY CLIENT", "ATTORNEY CLIENT; Work Product", "ATTORNEY CLIENT",
+                           "Attorney Client", "=Formula", "EXAMPLE_000001-92"]
+        assert rows[2][1:3] == ["Work Product", "Work Product"]
+    else:
+        assert rows[0][:3] == ["Contains a TRUE marker", "Contains a TRUE marker; (TrUe)", "Contains a TRUE marker"]
+        assert rows[0][4] == "TRUE"
+        assert rows[2][1:3] == ["  true  ", "  true  "]
+    assert rows[1][:3] == ["TRUETYPE", "TRUETYPE; FALSE", "TRUETYPE"]
+    preview = build_preview(source, analysis, "privilege_log", mapping)
+    output = tmp_path / "output.csv"
+    stats = write_output(output, source, analysis, "privilege_log", mapping, 0)
+    with output.open(encoding="utf-8-sig", newline="") as handle:
+        written = list(csv.reader(handle))
+    assert written[1:] == preview.rows
+    assert stats.formula_escapes == int(enabled)
+    assert written[1][4] == ("'=Formula" if enabled else "TRUE")
+    assert source.read_bytes() == original
+
+
+@pytest.mark.parametrize("end", [2, 9, 10, 92, 99, 100, 999, 1000, 1596, 9999, 10000, 100001])
+@pytest.mark.parametrize("width", [1, 6, 12])
+def test_bates_endings_are_unpadded_in_both_workflows(tmp_path: Path, end: int, width: int) -> None:
+    source = tmp_path / "ranges.csv"
+    begin_label = f"EXAMPLE_{1:0{width}d}"
+    end_label = f"EXAMPLE_{end:0{width}d}"
+    expected = f"EXAMPLE_{1:0{max(width, len(str(end)))}d}-{end}"
+    assert shorten_bates(begin_label, end_label) == expected
+    source.write_text(f"Bates/Control #,End Bates/Control #,RFP\n{begin_label},{end_label},RFP 1\n", encoding="utf-8")
+    analysis = analyze_csv(source, source.name)
+    mapping = MappingConfig.model_validate({"columns": [
+        {"id": "range", "name": "Range", "source_fields": ["Bates/Control #", "End Bates/Control #"],
+         "transform": {"kind": "shorten_bates"}},
+    ]})
+    for workflow in ("rfp_ranges", "privilege_log"):
+        preview = build_preview(source, analysis, workflow, mapping)
+        output = tmp_path / f"{workflow}.out"
+        write_output(output, source, analysis, workflow, mapping, 0)
+        if workflow == "rfp_ranges":
+            assert preview.text == f"RFP 01\r\n{expected}\r\n"
+            assert output.read_bytes() == preview.text.encode("utf-8")
+        else:
+            assert preview.rows == [[expected]]
+            with output.open(encoding="utf-8-sig", newline="") as handle:
+                assert list(csv.reader(handle)) == [["Range"], [expected]]
 
 
 def test_privilege_preview_mapping() -> None:
@@ -409,7 +501,7 @@ def test_mapping_normalize_defaults_off_and_applies_after_every_transform(tmp_pa
 
     cases = [
         ({"kind": "none"}, ["Primary"], "First Last A@GMAIL.COM"),
-        ({"kind": "shorten_bates"}, ["Begin", "End"], "Test_0001-0002"),
+        ({"kind": "shorten_bates"}, ["Begin", "End"], "Test_0001-2"),
         ({"kind": "fill"}, ["Primary", "Secondary", "Third"], "First Last A@GMAIL.COM"),
         (
             {"kind": "delimit", "delimiter": "; "},
@@ -683,7 +775,7 @@ def test_large_valid_cell_cp1252_and_prefixless_bates(tmp_path: Path) -> None:
     assert rows[0][0] == "RFP 01"
     assert rows[0][1] == "000001"
     assert skipped == 0
-    assert shorten_bates("000001", "000002") == "000001-0002"
+    assert shorten_bates("000001", "000002") == "000001-2"
 
 
 def test_oversized_cell_has_specific_issue(tmp_path: Path) -> None:

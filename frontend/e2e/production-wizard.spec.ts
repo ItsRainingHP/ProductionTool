@@ -67,7 +67,7 @@ test("pleading wizard produces the expected text download and receipt identity",
   await expect(page.getByRole("heading", { name: "Your text file is ready" })).toBeVisible();
   const text = await downloadText(page, /Download text file/);
   expect(text).toContain("RFP 01\r\n");
-  expect(text).toContain("SYNREFLCPLD001-0000001, SYNREFLCPLD001-0000005-0006");
+  expect(text).toContain("SYNREFLCPLD001-0000001, SYNREFLCPLD001-0000005-6");
   const jobId = new URL(page.url()).pathname.split("/")[2];
   const receiptResponse = await request.get(`/api/v1/jobs/${jobId}/receipt.json`);
   expect(receiptResponse.status()).toBe(200);
@@ -109,6 +109,51 @@ test("privilege wizard produces a spreadsheet-safe CSV", async ({ page }) => {
   expect(text).toContain("Bates Range");
   expect(text).toContain("SYNREFLCPRV001-0000001");
 });
+
+for (const enabled of [true, false]) {
+  test(`Logikcull TRUE replacement ${enabled ? "enabled" : "disabled"} persists through review and download`, async ({ page, request }) => {
+    await page.goto("/wizard");
+    await page.locator('input[type="file"]').setInputFiles({
+      name: "synthetic-true-markers.csv", mimeType: "text/csv",
+      buffer: Buffer.from(
+        "Bates/Control #,End Bates/Control #,Tag: Attorney Client,Tag: Work Product\n"
+        + "EXAMPLE_000001,EXAMPLE_000092,Contains a TRUE marker,(TrUe)\n"
+        + "EXAMPLE_000093,EXAMPLE_001596,TRUETYPE,FALSE\n",
+      ),
+    });
+    await page.getByRole("button", { name: "Continue" }).click();
+    const checkbox = page.getByRole("checkbox", { name: "Replace cells containing TRUE with column headings" });
+    await expect(checkbox).toBeChecked();
+    await checkbox.uncheck();
+    await page.goBack();
+    await expect(page.getByRole("heading", { name: "Choose the output" })).toBeVisible();
+    await page.goForward();
+    await expect(checkbox).not.toBeChecked();
+    await page.reload();
+    await expect(checkbox).not.toBeChecked();
+    await page.getByRole("button", { name: "Discard draft" }).click();
+    await expect(checkbox).toBeChecked();
+    if (!enabled) await checkbox.uncheck();
+    await page.getByRole("button", { name: "Review output" }).click();
+    await expect(page.getByRole("heading", { name: "Review your output" })).toBeVisible();
+    await expect(page.getByRole("cell", { name: enabled ? "Attorney Client" : "Contains a TRUE marker", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Previous" }).click();
+    await expect(checkbox).toBeChecked({ checked: enabled });
+    await page.reload();
+    await expect(checkbox).toBeChecked({ checked: enabled });
+    await page.getByRole("button", { name: "Review output" }).click();
+    await page.getByRole("button", { name: "Finalize CSV" }).click();
+    const text = await downloadText(page, /Download CSV/);
+    expect(text).toContain(enabled
+      ? "EXAMPLE_000001-92,Attorney Client,Work Product"
+      : "EXAMPLE_000001-92,Contains a TRUE marker,(TrUe)");
+    expect(text).toContain("EXAMPLE_000093-1596,TRUETYPE,FALSE");
+    const jobId = new URL(page.url()).pathname.split("/")[2];
+    const receipt = await request.get(`/api/v1/jobs/${jobId}/receipt.json`);
+    expect((await receipt.json()).mapping.replace_true_with_header).toBe(enabled);
+    await request.delete(`/api/v1/jobs/${jobId}`);
+  });
+}
 
 test("blocking CSV cannot advance beyond validation", async ({ page }) => {
   await upload(page, "generated/everlaw/pleading/invalid/ew_pleading_018_missing_begin_bates_column.csv");

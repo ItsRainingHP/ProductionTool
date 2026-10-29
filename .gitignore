@@ -28,3 +28,6 @@ artifacts/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Local Codex attachments
+.codex-remote-attachments/
