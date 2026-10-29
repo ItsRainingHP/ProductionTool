@@ -10,6 +10,7 @@ const job = {
 const draft = {
   schemaVersion: 1 as const, jobId: job.job_id, configurationRevision: job.configuration_revision,
   expiresAt: job.expires_at, acknowledged: ["uneven_row_width"], mappingColumns: [],
+  replaceTrueWithHeader: false,
   pleadingSettings: { delimiter: "semicolon" as const, include_and: false },
 };
 
@@ -28,6 +29,16 @@ it("restores only a matching live job configuration in this tab", () => {
   expect(saveAdvancedDraft(draft)).toBe(true);
   clearAdvancedDraft(job.job_id);
   expect(loadAdvancedDraft(job)).toEqual({ status: "none" });
+});
+
+it("defaults legacy drafts to enabled and rejects an invalid TRUE replacement setting", () => {
+  const legacy = { ...draft, replaceTrueWithHeader: undefined };
+  expect(saveAdvancedDraft(legacy)).toBe(true);
+  expect(loadAdvancedDraft(job).draft?.replaceTrueWithHeader).toBe(true);
+  window.sessionStorage.setItem("production-tool.advanced-draft.v1.job-1", JSON.stringify({
+    ...draft, replaceTrueWithHeader: "false",
+  }));
+  expect(loadAdvancedDraft(job)).toEqual({ status: "stale" });
 });
 
 it("clears expired and malformed drafts and reports unavailable storage", () => {

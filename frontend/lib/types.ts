@@ -17,7 +17,7 @@ export type Analysis = Omit<Required<Schema["Analysis"]>, "issues"> & { issues: 
 export type OutputColumn = Omit<Required<Schema["OutputColumn"]>, "transform"> & {
   transform: Required<Schema["MappingTransform"]>;
 };
-export type MappingConfig = { columns: OutputColumn[] };
+export type MappingConfig = Partial<Omit<Schema["MappingConfig"], "columns">> & { columns: OutputColumn[] };
 export type MappingBlankReport = Schema["MappingBlankReport"];
 export type PleadingSettings = Required<Schema["PleadingSettings"]>;
 type OutputStats = Schema["OutputStats"];

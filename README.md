@@ -8,6 +8,8 @@ Production Tool converts Everlaw and Logikcull CSV exports into formatted RFP/pl
 - Validates CSV structure, encoding, required Bates fields, ranges, gaps, and duplicates before output is generated.
 - Groups shortened, contiguous Bates ranges beneath each RFP heading.
 - Builds privilege logs with direct fields, shortened Bates ranges, delimited combinations, and ordered first-nonblank fallback fields.
+- Uses unpadded ending numbers in shortened Bates ranges, for example `EXAMPLE_000001-92`.
+- Replaces Logikcull privilege cells containing the standalone word `TRUE` with their source heading, excluding a leading `Tag:`, before Direct, Join, or Fill. This Advanced option defaults to enabled and can be turned off for each job.
 - Provides configurable pleading separators and an optional final “and.”
 - Reports advisory-only findings for possible Social Security numbers, dates of birth, consumer email domains, and one-word names or usernames in people fields.
 - Optionally normalizes contact text while protecting generated CSV cells from spreadsheet-formula execution.
@@ -40,7 +42,9 @@ Upload clients must send the CSV bytes as a raw `PUT /api/v1/jobs/{job_id}/sourc
 Uploaded sources, generated outputs, receipts, and the SQLite job catalog are stored in `JOB_DATA_DIR`. They are ephemeral unless that directory is backed by a persistent volume. Jobs survive an application restart when that volume survives, and expired job directories are removed automatically.
 RFP processing scratch and SQLite disk-based temporary files also use the job volume, so capacity monitoring must include them.
 
-The canonical application version is stored in `VERSION`; `deploy/release-metadata.json` records the API/receipt schemas and digest-pinned base images. CI checks this metadata and tests the production container before publishing an image.
+The canonical application version is stored in `VERSION`; `deploy/release-metadata.json` records the API/receipt schemas, digest-pinned base images, and qualified runtime versions. The production runtime uses Wolfi packages with SQLite 3.54.1 or newer, Python 3.14, and Node 22.23.4. The application retains UID/GID 999 for compatibility with existing job volumes. CI verifies this identity, the installed versions, and the production Python lockfile inside the image before testing the browser workflows.
+
+Security gates audit all frontend and Python development dependencies and scan the complete production image at every severity, including unfixed findings. A successful run has no known vulnerability findings in these audits; scans must be repeated as advisory data changes.
 
 ## Requirements
 
@@ -100,7 +104,7 @@ npm install
 npm run dev
 ```
 
-Runtime container dependencies are installed from the hash-locked `backend/requirements.lock`. After changing `requirements.txt`, regenerate it with `python -m piptools compile --generate-hashes --strip-extras --output-file=requirements.lock requirements.txt`.
+Runtime container dependencies are installed from the hash-locked `backend/requirements.lock`; Linux CI uses `backend/requirements-dev.lock` with `--require-hashes`. These locks are generated on Linux with Python 3.14; Windows development uses `requirements-dev.txt` so platform-specific packages such as uvloop are resolved correctly. After changing either input file, regenerate both locks in the qualified Linux environment with `python -m piptools compile --allow-unsafe --generate-hashes --strip-extras --output-file=requirements.lock requirements.txt` and `python -m piptools compile --allow-unsafe --constraint=requirements.lock --generate-hashes --strip-extras --output-file=requirements-dev.lock requirements-dev.txt`. The `--allow-unsafe` option includes hashed pins for packaging tools required by CI. Release validation rejects mismatched direct pins or production/development lock versions. Keep TypeScript 5 and Node 22 declarations aligned with the API generator and deployed runtime, and update Vitest and its coverage provider together.
 
 Open `http://localhost:3000`. In development, Next.js proxies `/api` requests to `http://127.0.0.1:8000` by default.
 

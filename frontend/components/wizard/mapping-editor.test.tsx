@@ -78,6 +78,22 @@ describe("MappingEditor normalization", () => {
     expect(within(cards[0] as HTMLElement).queryByText(/blank output cell/)).not.toBeInTheDocument();
   });
 
+  it("refreshes blank counts when only TRUE replacement changes", async () => {
+    const fetcher = vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
+      const mapping = JSON.parse(init.body as string) as { replace_true_with_header: boolean };
+      return new Response(JSON.stringify({ blank_cells: [mapping.replace_true_with_header ? 1 : 0], output_rows: 1 }));
+    });
+    vi.stubGlobal("fetch", fetcher);
+    const columns: OutputColumn[] = [{ id: "tag", name: "Tag", source_fields: ["Tag:"],
+      transform: { kind: "none", delimiter: null }, normalize: false }];
+    const view = render(<Providers><MappingEditor jobId="job-1" headers={["Tag:"]} columns={columns} onChange={() => undefined} /></Providers>);
+    expect(await screen.findByText("1 blank output cell")).toBeVisible();
+    view.rerender(<Providers><MappingEditor jobId="job-1" headers={["Tag:"]} columns={columns} replaceTrueWithHeader={false} onChange={() => undefined} /></Providers>);
+    expect(screen.queryByText("1 blank output cell")).not.toBeInTheDocument();
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
+    expect(JSON.parse(fetcher.mock.calls[1][1].body).replace_true_with_header).toBe(false);
+  });
+
   it("finds and assigns fields, then reorders and removes them", () => {
     const initial: OutputColumn[] = [{ id: "output", name: "People", source_fields: ["First"],
       transform: { kind: "none", delimiter: null }, normalize: false }];

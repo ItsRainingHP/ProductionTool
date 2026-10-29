@@ -10,6 +10,7 @@ export interface AdvancedDraft {
   expiresAt: string;
   acknowledged: string[];
   mappingColumns: OutputColumn[];
+  replaceTrueWithHeader?: boolean;
   pleadingSettings: PleadingSettings;
 }
 
@@ -40,6 +41,7 @@ export function loadAdvancedDraft(job: Job): { status: "none" | "restored" | "st
       && Array.isArray(draft.acknowledged)
       && draft.acknowledged.every((code) => typeof code === "string")
       && Array.isArray(draft.mappingColumns)
+      && (draft.replaceTrueWithHeader === undefined || typeof draft.replaceTrueWithHeader === "boolean")
       && draft.mappingColumns.every((column) => column && typeof column.id === "string"
         && typeof column.name === "string" && Array.isArray(column.source_fields)
         && column.source_fields.every((field) => typeof field === "string")
@@ -50,7 +52,7 @@ export function loadAdvancedDraft(job: Job): { status: "none" | "restored" | "st
     if (valid && draft.configurationRevision === job.configuration_revision
       && draft.expiresAt === job.expires_at && Date.parse(draft.expiresAt) > Date.now()
       && job.status === "needs_configuration") {
-      return { status: "restored", draft };
+      return { status: "restored", draft: { ...draft, replaceTrueWithHeader: draft.replaceTrueWithHeader ?? true } };
     }
   } catch { /* corrupt or obsolete draft */ }
   clearAdvancedDraft(job.job_id);

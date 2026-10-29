@@ -9,7 +9,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Button, Card, Column, Grid, Heading, Icon, Input, ProgressBar, Row, Table, Tag, Text } from "@once-ui-system/core";
+import { Button, Card, Checkbox, Column, Grid, Heading, Icon, Input, ProgressBar, Row, Table, Tag, Text } from "@once-ui-system/core";
 import { AppFooter } from "@/components/app-footer";
 import { AppHeader } from "@/components/app-header";
 import { createJob, deleteJob, finalizeJob, getCapabilities, getJob, getPreview, readyForReview, setMapping, setPleadingSettings, setWorkflow, uploadSource } from "@/lib/api";
@@ -114,6 +114,7 @@ export function Wizard() {
   const [uploadSessionActive, setUploadSessionActive] = useState(false);
   const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null);
   const [mappingColumns, setMappingColumns] = useState<OutputColumn[]>([]);
+  const [replaceTrueWithHeader, setReplaceTrueWithHeader] = useState(true);
   const [pleadingSettings, setPleadingSettingsState] = useState<PleadingSettings>({ ...DEFAULT_PLEADING_SETTINGS });
   const [acknowledged, setAcknowledged] = useState<string[]>([]);
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -168,6 +169,7 @@ export function Wizard() {
     if (!job) return;
     clearAdvancedDraft(job.job_id);
     setMappingColumns(job.mapping?.columns ?? []);
+    setReplaceTrueWithHeader(job.mapping?.replace_true_with_header ?? true);
     setPleadingSettingsState(job.pleading_settings ?? { ...DEFAULT_PLEADING_SETTINGS });
     setAcknowledged(job.reviewed_issue_codes ?? []);
     setAdvancedDirty(false);
@@ -185,6 +187,7 @@ export function Wizard() {
       expiresAt: job.expires_at,
       acknowledged,
       mappingColumns: effectiveMappingColumns,
+      replaceTrueWithHeader,
       pleadingSettings,
     });
     queueMicrotask(() => {
@@ -193,7 +196,7 @@ export function Wizard() {
       setDraftNotice(saved ? "" : "This tab could not save your draft. Keep this page open or save before navigating.");
     });
     return () => { active = false; };
-  }, [acknowledged, advancedDirty, effectiveMappingColumns, job, pleadingSettings]);
+  }, [acknowledged, advancedDirty, effectiveMappingColumns, job, pleadingSettings, replaceTrueWithHeader]);
 
   useEffect(() => {
     if (step !== "advanced" || !advancedDirty || !draftStorageUnavailable) return;
@@ -220,11 +223,13 @@ export function Wizard() {
         if (loaded.status === "failed" && !loaded.analysis) setError(loaded.error ?? "CSV analysis failed. Choose the source CSV again.");
         setSelectedWorkflow(loaded.workflow ?? (loaded.analysis?.detected_workflow === "unknown" ? null : loaded.analysis?.detected_workflow ?? null));
         if (loaded.mapping) setMappingColumns(loaded.mapping.columns);
+        setReplaceTrueWithHeader(loaded.mapping?.replace_true_with_header ?? true);
         setPleadingSettingsState(loaded.pleading_settings ?? { ...DEFAULT_PLEADING_SETTINGS });
         const draft = routeStep === "advanced" ? loadAdvancedDraft(loaded) : { status: "none" as const };
         if (draft.status === "restored" && draft.draft) {
           setAcknowledged(draft.draft.acknowledged);
           setMappingColumns(draft.draft.mappingColumns);
+          setReplaceTrueWithHeader(draft.draft.replaceTrueWithHeader ?? true);
           setPleadingSettingsState(draft.draft.pleadingSettings);
         }
         setAdvancedDirty(draft.status === "restored");
@@ -339,6 +344,7 @@ export function Wizard() {
       controller.signal.throwIfAborted();
       setSelectedWorkflow(analyzed.workflow ?? (analyzed.analysis?.detected_workflow === "unknown" ? null : analyzed.analysis?.detected_workflow ?? null));
       setMappingColumns([]);
+      setReplaceTrueWithHeader(true);
       setPleadingSettingsState(analyzed.pleading_settings ?? { ...DEFAULT_PLEADING_SETTINGS });
       setAcknowledged([]);
       setPreview(null);
@@ -371,6 +377,7 @@ export function Wizard() {
       const updated = job.workflow === selectedWorkflow ? job : await setWorkflow(job.job_id, selectedWorkflow);
       setJob(updated);
       if (selectedWorkflow === "privilege_log") setMappingColumns(updated.mapping?.columns ?? defaultMapping(updated));
+      if (selectedWorkflow === "privilege_log") setReplaceTrueWithHeader(updated.mapping?.replace_true_with_header ?? true);
       if (selectedWorkflow === "rfp_ranges") setPleadingSettingsState(updated.pleading_settings ?? { ...DEFAULT_PLEADING_SETTINGS });
       if (job.workflow !== selectedWorkflow) { clearAdvancedDraft(job.job_id); setAdvancedDirty(false); }
       navigate("advanced");
@@ -384,7 +391,7 @@ export function Wizard() {
     setBusy(true); setError("");
     try {
       let updated = job;
-      if (job.workflow === "privilege_log") updated = await setMapping(job.job_id, { columns: effectiveMappingColumns });
+      if (job.workflow === "privilege_log") updated = await setMapping(job.job_id, { columns: effectiveMappingColumns, replace_true_with_header: replaceTrueWithHeader });
       if (job.workflow === "rfp_ranges") updated = await setPleadingSettings(job.job_id, pleadingSettings);
       setJob(updated);
       clearAdvancedDraft(job.job_id);
@@ -423,6 +430,7 @@ export function Wizard() {
     setJob(null);
     setSelectedWorkflow(null);
     setMappingColumns([]);
+    setReplaceTrueWithHeader(true);
     setPleadingSettingsState({ ...DEFAULT_PLEADING_SETTINGS });
     setAcknowledged([]);
     setPreview(null);
@@ -625,8 +633,20 @@ export function Wizard() {
                   </Column>
                 ) : (
                   <Column gap="16">
+                    {job.analysis.platform === "logikcull" && (
+                      <Column gap="4" padding="16" radius="m" background="neutral-alpha-weak">
+                        <Checkbox
+                          label="Replace cells containing TRUE with column headings"
+                          isChecked={replaceTrueWithHeader}
+                          onToggle={() => { setReplaceTrueWithHeader((current) => !current); setAdvancedDirty(true); }}
+                        />
+                        <Text variant="body-default-xs" onBackground="neutral-weak">
+                          Replaces the entire cell when it contains the standalone word TRUE with its source heading, excluding a leading Tag:, before Direct, Join, or Fill.
+                        </Text>
+                      </Column>
+                    )}
                     <TemplateManager headers={job.analysis.headers} columns={effectiveMappingColumns} templates={templates} onTemplatesChange={setTemplates} onApply={(columns, missing) => { setMappingColumns(columns); setAdvancedDirty(true); if (missing.length) setError(`Template fields not present in this CSV: ${missing.join(", ")}`); }} onError={setError} />
-                    <MappingEditor jobId={job.job_id} headers={job.analysis.headers} columns={effectiveMappingColumns} onChange={(columns) => { setMappingColumns(columns); setAdvancedDirty(true); }} />
+                    <MappingEditor jobId={job.job_id} headers={job.analysis.headers} columns={effectiveMappingColumns} replaceTrueWithHeader={replaceTrueWithHeader} onChange={(columns) => { setMappingColumns(columns); setAdvancedDirty(true); }} />
                   </Column>
                 )}
                 {advancedDirty && (

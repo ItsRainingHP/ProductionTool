@@ -41,10 +41,10 @@
         "outcome": "complete",
         "outputRows": 2,
         "outputCells": 4,
-        "outputSizeBytes": 58,
+        "outputSizeBytes": 55,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "0816a564bb1bd9c63cac15444ba820f95293ae35bc6db87bf867ba58c8d54424"
+        "outputSha256": "ee5a71ab8260c1f5ac648d24e529933615720b32051e308aaa07a595d799fa88"
       }
     },
     {
@@ -120,10 +120,10 @@
         "outcome": "complete",
         "outputRows": 9,
         "outputCells": 18,
-        "outputSizeBytes": 293,
+        "outputSizeBytes": 278,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "d6fc558d76d1c784991e47a1ecdfc2cbcbc345c2bd493bf9b03acb52454451be"
+        "outputSha256": "5fb1061e878169e5093f219ac5f0ce011d2363ece7c5345e65175c9993bc2782"
       }
     },
     {
@@ -280,10 +280,10 @@
         "outcome": "complete",
         "outputRows": 19,
         "outputCells": 38,
-        "outputSizeBytes": 565,
+        "outputSizeBytes": 539,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "7d5f6ccbcf78193fcdc926467f97b17ab22ea96b03965e041054bbfde3621979"
+        "outputSha256": "ea678a58a02d07ea24451abe4bed570ea0a7a14b5a3016d6dd6f850f9c423b67"
       }
     },
     {
@@ -521,10 +521,10 @@
         "outcome": "complete",
         "outputRows": 47,
         "outputCells": 94,
-        "outputSizeBytes": 1295,
+        "outputSizeBytes": 1233,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "da2d8ef1ae35cce58f41f6f763cc2fdb69300e0d429679a1baa359b2e7e6b437"
+        "outputSha256": "2a1c6c1f68f8df0048b9ae0e6b1c1f56a93fb3c58e5c350135e1ec6d1f46186f"
       }
     },
     {
@@ -946,10 +946,10 @@
         "outcome": "complete",
         "outputRows": 93,
         "outputCells": 186,
-        "outputSizeBytes": 2429,
+        "outputSizeBytes": 2335,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "3511fc69d8c957be33fbc6a96570e06e6992bac9fa847d9df2e6ca3af9ee4860"
+        "outputSha256": "d61d54051f9ed716844b61cf8462e9897f263caa5b8c041c873958c1a3ee4e93"
       }
     },
     {
@@ -3108,10 +3108,10 @@
         "outcome": "complete",
         "outputRows": 329,
         "outputCells": 658,
-        "outputSizeBytes": 8908,
+        "outputSizeBytes": 8888,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "71bba2bcc44be501d2945b3ad0f55e3587f00c8ca894e959e5d374fefee8cd7f"
+        "outputSha256": "f4789163f1c1e9603dbd41f3fb3416956b5bd07bda14b215ee0dfe0d716c7532"
       }
     },
     {
@@ -6877,10 +6877,10 @@
         "outcome": "complete",
         "outputRows": 929,
         "outputCells": 1858,
-        "outputSizeBytes": 23700,
+        "outputSizeBytes": 23359,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "b9110c981cc0a24c565e5de1bbefa021f03e77d41d5e0ebab5bd1a23fa494f72"
+        "outputSha256": "512c32f65ac5ec98afcc6bc0ee650f0ec99935da56022ccfbc2da7810c4b6eab"
       }
     },
     {
@@ -14354,10 +14354,10 @@
         "outcome": "complete",
         "outputRows": 1856,
         "outputCells": 3712,
-        "outputSizeBytes": 45327,
+        "outputSizeBytes": 44986,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "a1d8bb23e829653f8a2c8185ad3022d4b2c6e256962d31d7f5c4d3f7b1458d35"
+        "outputSha256": "7847293dee2e374a8b0c908fc6bfda6559f7d023db2d67b0a53e845025073f48"
       }
     },
     {
@@ -32979,10 +32979,10 @@
         "outcome": "complete",
         "outputRows": 4643,
         "outputCells": 9286,
-        "outputSizeBytes": 113139,
+        "outputSizeBytes": 112798,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "f90ebf85fae093a43149e7377c44721ebe468ff8cc5ddecb5be826b561e87d15"
+        "outputSha256": "f5ca164031e7a1b0c155a3d7e52f599db5a9638044f8e314f0fd4c107a8e443e"
       }
     },
     {
@@ -53010,10 +53010,10 @@
         "outcome": "complete",
         "outputRows": 5000,
         "outputCells": 10000,
-        "outputSizeBytes": 123410,
+        "outputSizeBytes": 123227,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "009df746855e92ba5688cda8bd4ceabd76160e6ade190587c3a6cddd88d47d4c"
+        "outputSha256": "58f7d9413cd1915b541442a4ea9cdef3a5b9bd788503b8302887e30112d68618"
       }
     },
     {
@@ -54641,10 +54641,10 @@
         "outcome": "complete",
         "outputRows": 400,
         "outputCells": 800,
-        "outputSizeBytes": 11904,
+        "outputSizeBytes": 11721,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "0a7409bed2ef6b8e166a139a3d107ea736cac6fb372c32488a54925459185c8d"
+        "outputSha256": "158b6d0c3d8bdad3c5c9c887f0f5def6e60d194e576668ef0c27ba30cfc70ca5"
       }
     },
     {
@@ -134774,10 +134774,10 @@
         "outcome": "complete",
         "outputRows": 20001,
         "outputCells": 40002,
-        "outputSizeBytes": 530727,
+        "outputSizeBytes": 529623,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "55b912cee8d430186b2316a451baa0de60c9626699a7eb05e819df92a33673e3"
+        "outputSha256": "4eca97d6733f2d4d785e76885cde85378697421becefdec684d6cba79371dc07"
       }
     },
     {
@@ -135061,10 +135061,10 @@
         "outcome": "complete_with_warnings",
         "outputRows": 98,
         "outputCells": 196,
-        "outputSizeBytes": 2549,
+        "outputSizeBytes": 2455,
         "skippedRows": 9,
         "formulaEscapes": 0,
-        "outputSha256": "d593bb5004b39a744862e5675443fd9ab74645c1468fc9e76ab5f2ae695e55c9"
+        "outputSha256": "fe52afcece076b5540e9c3fe96667e85ae2b4d451571c3cad6e0f822bd623119"
       }
     },
     {
@@ -135095,10 +135095,10 @@
         "outcome": "complete_with_warnings",
         "outputRows": 74,
         "outputCells": 148,
-        "outputSizeBytes": 1900,
+        "outputSizeBytes": 1859,
         "skippedRows": 110,
         "formulaEscapes": 0,
-        "outputSha256": "222d6a3b78da0a0276cb3aa7006cba6346603f4309199a399ce5d492908a7bc4"
+        "outputSha256": "e7aed55189187d9d16ba3cda474f40d54219eecdb60367c2947e2937209ced88"
       }
     },
     {
@@ -135218,10 +135218,10 @@
         "outcome": "complete",
         "outputRows": 2,
         "outputCells": 12,
-        "outputSizeBytes": 337,
+        "outputSizeBytes": 334,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "b51af5672dcaffad7bbd18ba68f8fea47b54813aa5c8bd106ec509de96b1f1d8"
+        "outputSha256": "4a751a6b6625bfdac3f6e80694aaf9fe2be4302c6c81f8b740e41f51efe45692"
       }
     },
     {
@@ -135246,10 +135246,10 @@
         "outcome": "complete",
         "outputRows": 3,
         "outputCells": 18,
-        "outputSizeBytes": 481,
+        "outputSizeBytes": 476,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "bf6b65e90c3a64be88f9c500163583dc14b32e9393b32a80caf65c1a9c667620"
+        "outputSha256": "d57cae31becd39193895a87a87c3ec730b2439423c895db275c26a799be2049c"
       }
     },
     {
@@ -135274,10 +135274,10 @@
         "outcome": "complete",
         "outputRows": 5,
         "outputCells": 30,
-        "outputSizeBytes": 312,
+        "outputSizeBytes": 305,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "715b9e505508c8ab213d7173271b428b13fca18380c8e0857fdb1b3a240d2521"
+        "outputSha256": "86cafa8e47fd2bdf359c2ef96287ddb0d5b5b1bec9451bfbb33303398f251ad2"
       }
     },
     {
@@ -135302,10 +135302,10 @@
         "outcome": "complete",
         "outputRows": 10,
         "outputCells": 60,
-        "outputSizeBytes": 1459,
+        "outputSizeBytes": 1446,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "c445e3f60e842c1d5ccf080197843618a7d4382dc97378214785be030a58b4a1"
+        "outputSha256": "2796be76f2a76c7349b01183a8080e2136f00a448473683de2f1a605fc97ea5b"
       }
     },
     {
@@ -135330,10 +135330,10 @@
         "outcome": "complete",
         "outputRows": 25,
         "outputCells": 150,
-        "outputSizeBytes": 3609,
+        "outputSizeBytes": 3576,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "daa3c5408b4c5940aa4330a8d564f6725a9e415894fa2fefcf865437eea3b399"
+        "outputSha256": "6aac22764e5754eb15af47fe60151aedd4064828672108b005fd790886573bd3"
       }
     },
     {
@@ -135358,10 +135358,10 @@
         "outcome": "complete",
         "outputRows": 50,
         "outputCells": 300,
-        "outputSizeBytes": 7169,
+        "outputSizeBytes": 7119,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "fe2063ac61c77297285b7d94200470012fa179b9043849363cc28bde6527fb3a"
+        "outputSha256": "153c4baae7a25f491d8d7917ec75284886a6a522ef76e88e51b99826bed5bbdf"
       }
     },
     {
@@ -135414,10 +135414,10 @@
         "outcome": "complete",
         "outputRows": 250,
         "outputCells": 1500,
-        "outputSizeBytes": 36202,
+        "outputSizeBytes": 36191,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "4edc4b476c44f89cbf08d0057024b0b8e6760615e44377be20a72f44eb32b1a5"
+        "outputSha256": "543f7a02360d7ccb70655f732ebc47ccf0d9f98b262773bafda234060cdff041"
       }
     },
     {
@@ -135442,10 +135442,10 @@
         "outcome": "complete",
         "outputRows": 500,
         "outputCells": 3000,
-        "outputSizeBytes": 71720,
+        "outputSizeBytes": 71537,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "8038662727a1f8c5896bf485a0c0a383a8fd747682c513d259384ebf43f33126"
+        "outputSha256": "3610d5684e55f0d5db11d7381b12cc3e3042123eb0c5773c9bce96e9a8e4e78b"
       }
     },
     {
@@ -135470,10 +135470,10 @@
         "outcome": "complete",
         "outputRows": 1000,
         "outputCells": 6000,
-        "outputSizeBytes": 142384,
+        "outputSizeBytes": 142201,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "1795fdc45b72dc8ffb856b2b84111809a66d718618ea13fb92b1caf7516338ee"
+        "outputSha256": "068b796b44145151076a3f1d491e2345e65ca3346a76e3db1d52e0ab95f82cb3"
       }
     },
     {
@@ -135498,10 +135498,10 @@
         "outcome": "complete",
         "outputRows": 2500,
         "outputCells": 15000,
-        "outputSizeBytes": 355884,
+        "outputSizeBytes": 355701,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "0da8c7a3d213304d8fefd03b1ebdc88c04c97b0ec242740ccccd7d4609002445"
+        "outputSha256": "2ea4190311d027502ebc1dfda32e2f8b904926c09f71b80b42b007e96e37b345"
       }
     },
     {
@@ -135526,10 +135526,10 @@
         "outcome": "complete",
         "outputRows": 5000,
         "outputCells": 30000,
-        "outputSizeBytes": 713386,
+        "outputSizeBytes": 713203,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "0a140bf0837f748696c510e3936df9a7bf3b693fb38c1da39f4e1630cf6bd6b3"
+        "outputSha256": "f58fe24c674424c95bead2b02351c5f65855bc8eb4fa0225bdc36c1094996f34"
       }
     },
     {
@@ -135554,10 +135554,10 @@
         "outcome": "complete",
         "outputRows": 400,
         "outputCells": 2400,
-        "outputSizeBytes": 56984,
+        "outputSizeBytes": 56801,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "efa235cfa9e2fba01dc1cc687d47159cd484ed585b64f1fcc3937cf948503472"
+        "outputSha256": "a79597bfcf78521f2c7afe3dbd91a5f6ccc1b8357bf4a6280af0c8759fc6dac3"
       }
     },
     {
@@ -135582,10 +135582,10 @@
         "outcome": "complete",
         "outputRows": 10000,
         "outputCells": 60000,
-        "outputSizeBytes": 1445055,
+        "outputSizeBytes": 1444503,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "f3810a48047cb8f5822260f6c9e5a79a399f5f9d5ad246dd45084213026fdcfa"
+        "outputSha256": "c020359acf99b6be1adbeac4359fb69bad11c4e3addfffae1bc4cd7eff0851b0"
       }
     },
     {
@@ -135610,10 +135610,10 @@
         "outcome": "complete",
         "outputRows": 12500,
         "outputCells": 75000,
-        "outputSizeBytes": 1807555,
+        "outputSizeBytes": 1807003,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "74efe9b5a41e7aeacb3fd7f9dfd994adb57bd408706d2452a658fec0cb301743"
+        "outputSha256": "4221bd8c44aca23297c150fc5a99fe6f168b306af226667cf7ec7f8ec5ca3653"
       }
     },
     {
@@ -135792,10 +135792,10 @@
         "outcome": "complete_with_warnings",
         "outputRows": 60,
         "outputCells": 360,
-        "outputSizeBytes": 8469,
+        "outputSizeBytes": 8420,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "3412ffe6dc919149cff97f08e860b94c5dc8b15dd5462b9c773400e5969b186a"
+        "outputSha256": "39acd9a5ae8f61c414ce7c1ca440c6ffb11cb8de1bdeef7d836da7a89e459f38"
       }
     },
     {
@@ -135826,10 +135826,10 @@
         "outcome": "complete_with_warnings",
         "outputRows": 150,
         "outputCells": 900,
-        "outputSizeBytes": 24874,
+        "outputSizeBytes": 24760,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "58928447e716b55c470ee15eaed9108628730234f09d63d4c23f5a4c0fbe351d"
+        "outputSha256": "ccd779b12b81d30f23903b1909bf6359cfb77209d1a1c4548e93f6bf1a36c2fb"
       }
     },
     {
@@ -135960,10 +135960,10 @@
         "outcome": "complete",
         "outputRows": 2,
         "outputCells": 4,
-        "outputSizeBytes": 58,
+        "outputSizeBytes": 55,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "7bb707578ab1dc56a74eb13cdb51c9ffb245a9a27fb63eb2b44d6a9ac0c0b288"
+        "outputSha256": "0b01e99807a5df8a863b8151634249a29290bd5c79536551fb07dd42be65fca5"
       }
     },
     {
@@ -136039,10 +136039,10 @@
         "outcome": "complete",
         "outputRows": 9,
         "outputCells": 18,
-        "outputSizeBytes": 293,
+        "outputSizeBytes": 278,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "e81521f68e549acae3ad415be220aa5fd600efaa6920909c81a39459049a7da8"
+        "outputSha256": "3b401a9c2fb1eef835578261f6daaf7ac6368ad0d8de6784aa09fc4d98a03188"
       }
     },
     {
@@ -136199,10 +136199,10 @@
         "outcome": "complete",
         "outputRows": 19,
         "outputCells": 38,
-        "outputSizeBytes": 565,
+        "outputSizeBytes": 539,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "487bf343977f09d1bc8effb4a60b7aa466f9a6ac37fbefab0322b7c4fbe598e5"
+        "outputSha256": "102df98bc9d3486106e2fbbb98f38e37a2bc77da868a1ad3b972c062338ff165"
       }
     },
     {
@@ -136440,10 +136440,10 @@
         "outcome": "complete",
         "outputRows": 47,
         "outputCells": 94,
-        "outputSizeBytes": 1295,
+        "outputSizeBytes": 1233,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "4a5fc822676481437b6ce1eebfaadd55a66ecc9dc72b8b2c19119261410c8fa2"
+        "outputSha256": "47e76faf537be7525d1c194f5c2eb7e60301dc42e3df36a892308864f0f72587"
       }
     },
     {
@@ -136865,10 +136865,10 @@
         "outcome": "complete",
         "outputRows": 93,
         "outputCells": 186,
-        "outputSizeBytes": 2429,
+        "outputSizeBytes": 2335,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "df8a82040a812fdb5fe5cc422532dca103b2406616f6507d9ffc719e83cbeb6b"
+        "outputSha256": "a6364f015ddae59ef88379809878a33e654fdf1721dc86cb9190233bf0ed434f"
       }
     },
     {
@@ -139027,10 +139027,10 @@
         "outcome": "complete",
         "outputRows": 329,
         "outputCells": 658,
-        "outputSizeBytes": 8908,
+        "outputSizeBytes": 8888,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "a7de84eab592e4ba9ff5bf7e82b2001a4ebed4f22445662c5d1a025656592b58"
+        "outputSha256": "641fba4d45f7f55c03bc8c0ca6f733cb37647de643061314ea115207ed517ba0"
       }
     },
     {
@@ -142796,10 +142796,10 @@
         "outcome": "complete",
         "outputRows": 929,
         "outputCells": 1858,
-        "outputSizeBytes": 23700,
+        "outputSizeBytes": 23359,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "f4f51a0ffdac3686c7e197f59a1284c0c15e341be11b32074eb6506a88db033b"
+        "outputSha256": "960b1519edda063a54de01a1cd75aa33be197f3cbcd2e084f5a17514aaeceb09"
       }
     },
     {
@@ -150273,10 +150273,10 @@
         "outcome": "complete",
         "outputRows": 1856,
         "outputCells": 3712,
-        "outputSizeBytes": 45327,
+        "outputSizeBytes": 44986,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "63aabf2de3d8f4922ef5f5cccb5f65868640b93c1de7eeccded2f2b400a04cd2"
+        "outputSha256": "6c9c347b7a16a92df4220f874669cf0b3f7de17b66af9fe99c9960537e9078c9"
       }
     },
     {
@@ -168898,10 +168898,10 @@
         "outcome": "complete",
         "outputRows": 4643,
         "outputCells": 9286,
-        "outputSizeBytes": 113139,
+        "outputSizeBytes": 112798,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "f0df942ea693876a8e06de89f75df0d494a440f03ec6c33324b480ab15c2ce0e"
+        "outputSha256": "ea588a2c9e4751d0471535d36752ee2d34d272d5c6266c8919913e452996427f"
       }
     },
     {
@@ -188929,10 +188929,10 @@
         "outcome": "complete",
         "outputRows": 5000,
         "outputCells": 10000,
-        "outputSizeBytes": 123410,
+        "outputSizeBytes": 123227,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "bb223d67800ee11c826e6769777e79ec233990ebb166365d4cb2ba4150c43aa8"
+        "outputSha256": "ab3f1738f6586b708037a2a8cd3956963172e5d8a5af7e1144207cf2f6199c52"
       }
     },
     {
@@ -190560,10 +190560,10 @@
         "outcome": "complete",
         "outputRows": 400,
         "outputCells": 800,
-        "outputSizeBytes": 11904,
+        "outputSizeBytes": 11721,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "60b80214bb10af931f2ca3dc9018c5cb42ff31d8ad660c91da03d69933711489"
+        "outputSha256": "c6754dfe399353ae84ed95ec94df1e2cc374ccf0ac26e6fb036301c1f1bae2e5"
       }
     },
     {
@@ -270693,10 +270693,10 @@
         "outcome": "complete",
         "outputRows": 20001,
         "outputCells": 40002,
-        "outputSizeBytes": 530727,
+        "outputSizeBytes": 529623,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "8baf377c96cccd57724e4c3fbdc57ff7ec08bfa6227fb9ab5fbb29769de189ae"
+        "outputSha256": "865c950803b5ffde0851a303d819bd520f653e12d04be22b0b542d815da1c3df"
       }
     },
     {
@@ -270980,10 +270980,10 @@
         "outcome": "complete_with_warnings",
         "outputRows": 98,
         "outputCells": 196,
-        "outputSizeBytes": 2549,
+        "outputSizeBytes": 2455,
         "skippedRows": 9,
         "formulaEscapes": 0,
-        "outputSha256": "6f46d0d272caed9339873ae4a6699f09bae829d7eae9bb377d1bf9348b810bf7"
+        "outputSha256": "403d9aa16ca8bf46e5be600e1ba549ed6546d2f9329db74987b2e607e43118f7"
       }
     },
     {
@@ -271014,10 +271014,10 @@
         "outcome": "complete_with_warnings",
         "outputRows": 74,
         "outputCells": 148,
-        "outputSizeBytes": 1900,
+        "outputSizeBytes": 1859,
         "skippedRows": 110,
         "formulaEscapes": 0,
-        "outputSha256": "9dec1d0bcb798ee379690e149a4afd13735f5fc0fb0f988da61efcf25f932928"
+        "outputSha256": "35de2a9a841eefc0edd3dc6abbf052b008ca8f86bba472961d47be6b03e55bb6"
       }
     },
     {
@@ -271137,10 +271137,10 @@
         "outcome": "complete",
         "outputRows": 2,
         "outputCells": 12,
-        "outputSizeBytes": 327,
+        "outputSizeBytes": 324,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "2f118569edfc614b55cf6ec8bbab1d323c559b25d7523a4d372d70a79f1efb97"
+        "outputSha256": "31019a876f6fb0eafdf6ca433e51580c213479bd629f8c49a8fad7a994838507"
       }
     },
     {
@@ -271165,10 +271165,10 @@
         "outcome": "complete",
         "outputRows": 3,
         "outputCells": 18,
-        "outputSizeBytes": 463,
+        "outputSizeBytes": 458,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "c215c2e09ac997cda92dc56853d5836c16e94a286ea615df4543814ab1e2448a"
+        "outputSha256": "6a98791b7b3d0a011f940d87078de34aa46ed5da7ded26e74608e6d4390cc89f"
       }
     },
     {
@@ -271193,10 +271193,10 @@
         "outcome": "complete",
         "outputRows": 5,
         "outputCells": 30,
-        "outputSizeBytes": 310,
+        "outputSizeBytes": 303,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "cceb449c13e8d1094af0093fd797b0eed12f631feb748fc7b8d060c2b6561271"
+        "outputSha256": "ee0ef2e6b51c2b2d131d6fe1cb3ddf1212fa56352d811c2839e99437b893984b"
       }
     },
     {
@@ -271221,10 +271221,10 @@
         "outcome": "complete",
         "outputRows": 10,
         "outputCells": 60,
-        "outputSizeBytes": 1130,
+        "outputSizeBytes": 1117,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "e9800b49b3b12d964d19cbca8a836331423cf305522759fde33f0e3c2bbae7d3"
+        "outputSha256": "d03dbe8eafd3d1a6574397384577404bcdd8fbace05ff1a1868e625099b70030"
       }
     },
     {
@@ -271249,10 +271249,10 @@
         "outcome": "complete",
         "outputRows": 25,
         "outputCells": 150,
-        "outputSizeBytes": 3415,
+        "outputSizeBytes": 3382,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "9cf055e1c8de218b0fb670739ba11d4bbd49f6fc42f22acdd655a3b2e2ed79d6"
+        "outputSha256": "573b7b57190f19dc2cb4ee6a0936eb2fbebdd7dd83987a73160d715558081a01"
       }
     },
     {
@@ -271277,10 +271277,10 @@
         "outcome": "complete",
         "outputRows": 50,
         "outputCells": 300,
-        "outputSizeBytes": 6775,
+        "outputSizeBytes": 6725,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "360aac53347dbba6f0ab8e2ccb2fb76d02cfd801a7461e11dd6b84fbaab4ce6a"
+        "outputSha256": "d24cb355f0ed06ad001aabc7d4ef01011858f5e68340edd561ab0ab3614e530b"
       }
     },
     {
@@ -271333,10 +271333,10 @@
         "outcome": "complete",
         "outputRows": 250,
         "outputCells": 1500,
-        "outputSizeBytes": 34208,
+        "outputSizeBytes": 34197,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "42cd3e061c20250b95ba701f6abb7d667744585884161815afac88d156c53249"
+        "outputSha256": "bd52a52f69f5d59063dc1034574f5daa2dbf7594ba257603cf715091a28f06f6"
       }
     },
     {
@@ -271361,10 +271361,10 @@
         "outcome": "complete",
         "outputRows": 500,
         "outputCells": 3000,
-        "outputSizeBytes": 67726,
+        "outputSizeBytes": 67543,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "4ec0ef54f4e0a1cb3fc958893e85233ae49d1c2f9b53f0bc765bc05924031211"
+        "outputSha256": "cfb939ea87545cad87f77ed12c91abf1c46430bbbfe6af38ba8b4146c4f74624"
       }
     },
     {
@@ -271389,10 +271389,10 @@
         "outcome": "complete",
         "outputRows": 1000,
         "outputCells": 6000,
-        "outputSizeBytes": 134390,
+        "outputSizeBytes": 134207,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "1787be04ba77a892e536fb2f259ff7b6c0435c5daf3a5068c2b49f64eddabcd7"
+        "outputSha256": "cc6c7f0ac4290432ca40709d27e2e3e585288f4b93a80e7cf95975197ae9520f"
       }
     },
     {
@@ -271417,10 +271417,10 @@
         "outcome": "complete",
         "outputRows": 2500,
         "outputCells": 15000,
-        "outputSizeBytes": 335890,
+        "outputSizeBytes": 335707,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "f7595888632978f33872f8a59c14e2f34c3b65b53437e5d6b223394104c4265b"
+        "outputSha256": "90306d42d3cbc00cceebe21961d591b387771f9c8b9b24bdd056300665da7558"
       }
     },
     {
@@ -271445,10 +271445,10 @@
         "outcome": "complete",
         "outputRows": 5000,
         "outputCells": 30000,
-        "outputSizeBytes": 673392,
+        "outputSizeBytes": 673209,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "2fa4de70ecb4f6294d7e053960b4fdf2379929d55b8583016cf73189c46853cd"
+        "outputSha256": "6ffe72f60b9cfc31763c32d92ea582cc2fb94139808d1c9897a3f18fd291ba93"
       }
     },
     {
@@ -271473,10 +271473,10 @@
         "outcome": "complete",
         "outputRows": 400,
         "outputCells": 2400,
-        "outputSizeBytes": 896190,
+        "outputSizeBytes": 896007,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "d1e95472043a455b18bcfd2a66c613f0cd48912ce1b942c628331e0a654c81ec"
+        "outputSha256": "6ea13d26ac55ac2fac9a2a10174db2701b2d93a6943ff44aa801213f9ad4d939"
       }
     },
     {
@@ -271501,10 +271501,10 @@
         "outcome": "complete",
         "outputRows": 10000,
         "outputCells": 60000,
-        "outputSizeBytes": 1365061,
+        "outputSizeBytes": 1364509,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "eebb185e0722e70e452a8a6da684e2d42afdc4ca3a78c38e02d433b5726b8f27"
+        "outputSha256": "83d547bc0b9a37f8bd21c3569a18c1a0b799a40297dd4bc2b83548c4bb971a55"
       }
     },
     {
@@ -271529,10 +271529,10 @@
         "outcome": "complete",
         "outputRows": 12500,
         "outputCells": 75000,
-        "outputSizeBytes": 1707561,
+        "outputSizeBytes": 1707009,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "cba61b8561e81d93616446dd9afd093b19c839852cd613a12013834f080efdbd"
+        "outputSha256": "69d8877482a737fa389de2f75e3721f423d355f00ea2d618a38ded688bab722c"
       }
     },
     {
@@ -271711,10 +271711,10 @@
         "outcome": "complete_with_warnings",
         "outputRows": 60,
         "outputCells": 360,
-        "outputSizeBytes": 7995,
+        "outputSizeBytes": 7946,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "8f5c8280544e3a28c69b54e1a146cac2bb89e024b89671c2516769ec7a769548"
+        "outputSha256": "298a2f632a1c3af0412ba700188059875e751b9eeb8be26515324ee8a0cc2d49"
       }
     },
     {
@@ -271745,10 +271745,10 @@
         "outcome": "complete_with_warnings",
         "outputRows": 150,
         "outputCells": 900,
-        "outputSizeBytes": 23680,
+        "outputSizeBytes": 23566,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "1ed4ea7d8d274c3798c26d5750236e8e4c432d19ed5162e8fe5c28ca89340a2f"
+        "outputSha256": "f0b829b48cea67188da5d367353e4df3a3b0ec6b9f8de26ac2cefb9e80bffa37"
       }
     },
     {
@@ -271919,10 +271919,10 @@
         "outcome": "complete",
         "outputRows": 12,
         "outputCells": 24,
-        "outputSizeBytes": 340,
+        "outputSizeBytes": 323,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "f60b2550e2bcf2ddb2dd8788b91f789bb0ea87b6aa8203b67cb6b17e6b62839a"
+        "outputSha256": "68a74a5b37342879d3727d45605ecfa4eb18d9a73bf8326eff64bc08c2ffaf39"
       }
     },
     {
@@ -272260,10 +272260,10 @@
         "outcome": "complete",
         "outputRows": 72,
         "outputCells": 144,
-        "outputSizeBytes": 2134,
+        "outputSizeBytes": 2035,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "f24ea3da9424f23b41c0990d78a5583b73c43e2c121ccbe8b2b56d62a361e196"
+        "outputSha256": "e0046d8c855d09173db24c37a3f4ee24c94c5dd8c3d2294cc1b2159c72a758a2"
       }
     },
     {
@@ -272288,10 +272288,10 @@
         "outcome": "complete",
         "outputRows": 18,
         "outputCells": 108,
-        "outputSizeBytes": 1048,
+        "outputSizeBytes": 1023,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "63b6833402d0d596451072c1e017b44a961dc6546c2da848df4962385db3435c"
+        "outputSha256": "ba446c2b812f065dcd759b62d7aeeb3e9e47816052ed615a3c8e1ea7b6a47a20"
       }
     },
     {
@@ -272316,10 +272316,10 @@
         "outcome": "complete",
         "outputRows": 36,
         "outputCells": 216,
-        "outputSizeBytes": 5286,
+        "outputSizeBytes": 5245,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "159395e7228e795dbc9fc242207cc54a8f15a4cc4f5dde4e2c44a479ce7c3dd3"
+        "outputSha256": "7e0471b26dca9e1f22844f5adc654cb65e085c6f595493d6485cf0b583c90b2d"
       }
     },
     {
@@ -272403,10 +272403,10 @@
         "outcome": "complete",
         "outputRows": 14,
         "outputCells": 28,
-        "outputSizeBytes": 393,
+        "outputSizeBytes": 374,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "08adaebe398aba6c78264de30e808ac052c5a164797e2384fb6eef2d3ba4324c"
+        "outputSha256": "548d63a7af6035e4b77dec9b45388b0d632959b4018f275402709b8c1a2d1c4f"
       }
     },
     {
@@ -272792,10 +272792,10 @@
         "outcome": "complete",
         "outputRows": 84,
         "outputCells": 168,
-        "outputSizeBytes": 2452,
+        "outputSizeBytes": 2347,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "c5f53a55ea418508c5285424246fb8e98f1f866b914e377bc1e87b129ac59612"
+        "outputSha256": "4a8b9a9adf4f73a5f2d6ff53619f9f3ea80b32142cff5f4ecb9a801e02562795"
       }
     },
     {
@@ -273255,10 +273255,10 @@
         "outcome": "complete",
         "outputRows": 85,
         "outputCells": 170,
-        "outputSizeBytes": 3047,
+        "outputSizeBytes": 2869,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "3ac116dc844b1f529bab4af2c19f5e0b43f482e5662c2a1f328cc2d0ae1cfc79"
+        "outputSha256": "1e929e7eeacc485f180da003632a56fe5a145f86e8035554450cde550064e5b8"
       }
     },
     {
@@ -273283,10 +273283,10 @@
         "outcome": "complete",
         "outputRows": 16,
         "outputCells": 96,
-        "outputSizeBytes": 911,
+        "outputSizeBytes": 890,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "ec545352bc24f184998d506fdb7e8b569dc460f6f67ec366cd842bb92e0a35f8"
+        "outputSha256": "934f90e76e7f8b10259d647ac0c9500e5fe282f0f663e412369a8e3cebcc0068"
       }
     },
     {
@@ -273311,10 +273311,10 @@
         "outcome": "complete",
         "outputRows": 32,
         "outputCells": 192,
-        "outputSizeBytes": 4453,
+        "outputSizeBytes": 4415,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "fe2f9ad45f13add6cee9ae616b08e305f37e9a3af283b5ac6dc1fa424d3b8306"
+        "outputSha256": "39ff0b3c14c2f7751567f89c1fdbff26138c9721aacea50f260aece837658b50"
       }
     },
     {
@@ -273405,10 +273405,10 @@
         "outcome": "complete",
         "outputRows": 3,
         "outputCells": 18,
-        "outputSizeBytes": 451,
+        "outputSizeBytes": 448,
         "skippedRows": 0,
         "formulaEscapes": 1,
-        "outputSha256": "19e58c53e8b7578d2190057b4d16eea1031b88d95bd5d6daeb431637a2b8002b"
+        "outputSha256": "e074e10ee18fc258d3b66dd811a2886ce02d4c39fd2ff7f738b717f4cd8072a3"
       }
     },
     {
@@ -273472,10 +273472,10 @@
         "outcome": "complete",
         "outputRows": 3,
         "outputCells": 18,
-        "outputSizeBytes": 450,
+        "outputSizeBytes": 447,
         "skippedRows": 0,
         "formulaEscapes": 1,
-        "outputSha256": "c319cc97120ca9451d343dd94b5a9faf1ccf9a9fee08d2506372875bcd0715e1"
+        "outputSha256": "7b3e27597c3d5d50e9c649c514ebfc1067d315b36ba0e63c55278cf2480fad3a"
       }
     },
     {
@@ -273556,24 +273556,338 @@
         "outputSizeBytes": 341,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "c76553dd453fe301011900f8f0796a6ccd58d8e09292c13c20bbcd33f6d1dbd7"
+        "outputSha256": "79aa5c70e0250e4093a52fa400ed8724e4ebe09348b031bdc3bd2422346e185f"
+      }
+    },
+    {
+      "id": "GEN-LC-PLEA-STRESS-001",
+      "path": "generated/logikcull/pleading/valid/lc_pleading_stress_bates_endings.csv",
+      "platform": "logikcull",
+      "dataType": "pleading",
+      "classification": "pleading",
+      "origin": "generated",
+      "scenario": "output_stress_bates_endings",
+      "rowCount": 18,
+      "rowCountKind": "data_rows",
+      "columnCount": 3,
+      "encoding": "utf-8",
+      "lineEnding": "CRLF",
+      "rfpLayout": "combined",
+      "batesProfile": "synthetic SYN prefixes, digit boundaries, variable padding, prefixless and 18-digit ranges",
+      "expectedStatus": "valid",
+      "expectedErrors": [],
+      "expectedRfpRanges": {
+        "RFP 01": [
+          {
+            "begin": "SYNSTRESS_000001",
+            "end": "SYNSTRESS_000092"
+          }
+        ],
+        "RFP 02": [
+          {
+            "begin": "SYNSTRESS_000093",
+            "end": "SYNSTRESS_001596"
+          }
+        ],
+        "RFP 03": [
+          {
+            "begin": "SYNBOUND_000001",
+            "end": "SYNBOUND_000002"
+          }
+        ],
+        "RFP 04": [
+          {
+            "begin": "SYNBOUND_000009",
+            "end": "SYNBOUND_000010"
+          }
+        ],
+        "RFP 05": [
+          {
+            "begin": "SYNBOUND_000099",
+            "end": "SYNBOUND_000100"
+          }
+        ],
+        "RFP 06": [
+          {
+            "begin": "SYNBOUND_000999",
+            "end": "SYNBOUND_001000"
+          }
+        ],
+        "RFP 07": [
+          {
+            "begin": "SYNBOUND_009999",
+            "end": "SYNBOUND_010000"
+          }
+        ],
+        "RFP 08": [
+          {
+            "begin": "SYNBOUND_013473",
+            "end": "SYNBOUND_015869"
+          }
+        ],
+        "RFP 09": [
+          {
+            "begin": "SYNBOUND_100000",
+            "end": "SYNBOUND_100001"
+          }
+        ],
+        "RFP 10": [
+          {
+            "begin": "SYNSINGLE_000007",
+            "end": "SYNSINGLE_000007"
+          }
+        ],
+        "RFP 11": [
+          {
+            "begin": "000001",
+            "end": "000009"
+          }
+        ],
+        "RFP 12": [
+          {
+            "begin": "SYNZERO_000000",
+            "end": "SYNZERO_000000"
+          }
+        ],
+        "RFP 13": [
+          {
+            "begin": "SYNBIG_999999999999999998",
+            "end": "SYNBIG_999999999999999999"
+          }
+        ],
+        "RFP 14": [
+          {
+            "begin": "SYNWIDTH_00001",
+            "end": "SYNWIDTH_00092"
+          }
+        ],
+        "RFP 15": [
+          {
+            "begin": "SYNMERGE_000001",
+            "end": "SYNMERGE_000009"
+          }
+        ],
+        "RFP 16": [
+          {
+            "begin": "SYNGAP_000001",
+            "end": "SYNGAP_000002"
+          },
+          {
+            "begin": "SYNGAP_000005",
+            "end": "SYNGAP_000009"
+          }
+        ]
+      },
+      "expectedWizard": {
+        "outcome": "complete",
+        "outputRows": 17,
+        "outputCells": 34,
+        "outputSizeBytes": 519,
+        "skippedRows": 0,
+        "formulaEscapes": 0,
+        "outputSha256": "73880f86bfd0ed9830e9d5f9d5628532a8d8e6e1f27b1f7ebf806d6503452269"
+      }
+    },
+    {
+      "id": "GEN-LC-PRV-STRESS-001",
+      "path": "generated/logikcull/privilege/valid/lc_privilege_stress_true_replacement.csv",
+      "platform": "logikcull",
+      "dataType": "privilege",
+      "classification": "privilege",
+      "origin": "generated",
+      "scenario": "output_stress_true_replacement",
+      "rowCount": 12,
+      "rowCountKind": "data_rows",
+      "columnCount": 8,
+      "encoding": "utf-8",
+      "lineEnding": "CRLF",
+      "rfpLayout": null,
+      "batesProfile": "synthetic SYNPRIV prefix and zero-padded digit-boundary ranges",
+      "expectedStatus": "valid",
+      "expectedErrors": [],
+      "expectedRfpRanges": {},
+      "expectedWizard": {
+        "outcome": "complete",
+        "outputRows": 12,
+        "outputCells": 72,
+        "outputSizeBytes": 822,
+        "skippedRows": 0,
+        "formulaEscapes": 4,
+        "outputSha256": "7e356eacd41fd0b6ce890e836e71a0bf16a81d5fc49038141b1a1cd0fac66983"
+      }
+    },
+    {
+      "id": "GEN-EW-PLEA-STRESS-001",
+      "path": "generated/everlaw/pleading/valid/ew_pleading_stress_bates_endings.csv",
+      "platform": "everlaw",
+      "dataType": "pleading",
+      "classification": "pleading",
+      "origin": "generated",
+      "scenario": "output_stress_bates_endings",
+      "rowCount": 18,
+      "rowCountKind": "data_rows",
+      "columnCount": 3,
+      "encoding": "utf-8",
+      "lineEnding": "CRLF",
+      "rfpLayout": "combined",
+      "batesProfile": "synthetic SYN prefixes, digit boundaries, variable padding, prefixless and 18-digit ranges",
+      "expectedStatus": "valid",
+      "expectedErrors": [],
+      "expectedRfpRanges": {
+        "RFP 01": [
+          {
+            "begin": "SYNSTRESS_000001",
+            "end": "SYNSTRESS_000092"
+          }
+        ],
+        "RFP 02": [
+          {
+            "begin": "SYNSTRESS_000093",
+            "end": "SYNSTRESS_001596"
+          }
+        ],
+        "RFP 03": [
+          {
+            "begin": "SYNBOUND_000001",
+            "end": "SYNBOUND_000002"
+          }
+        ],
+        "RFP 04": [
+          {
+            "begin": "SYNBOUND_000009",
+            "end": "SYNBOUND_000010"
+          }
+        ],
+        "RFP 05": [
+          {
+            "begin": "SYNBOUND_000099",
+            "end": "SYNBOUND_000100"
+          }
+        ],
+        "RFP 06": [
+          {
+            "begin": "SYNBOUND_000999",
+            "end": "SYNBOUND_001000"
+          }
+        ],
+        "RFP 07": [
+          {
+            "begin": "SYNBOUND_009999",
+            "end": "SYNBOUND_010000"
+          }
+        ],
+        "RFP 08": [
+          {
+            "begin": "SYNBOUND_013473",
+            "end": "SYNBOUND_015869"
+          }
+        ],
+        "RFP 09": [
+          {
+            "begin": "SYNBOUND_100000",
+            "end": "SYNBOUND_100001"
+          }
+        ],
+        "RFP 10": [
+          {
+            "begin": "SYNSINGLE_000007",
+            "end": "SYNSINGLE_000007"
+          }
+        ],
+        "RFP 11": [
+          {
+            "begin": "000001",
+            "end": "000009"
+          }
+        ],
+        "RFP 12": [
+          {
+            "begin": "SYNZERO_000000",
+            "end": "SYNZERO_000000"
+          }
+        ],
+        "RFP 13": [
+          {
+            "begin": "SYNBIG_999999999999999998",
+            "end": "SYNBIG_999999999999999999"
+          }
+        ],
+        "RFP 14": [
+          {
+            "begin": "SYNWIDTH_00001",
+            "end": "SYNWIDTH_00092"
+          }
+        ],
+        "RFP 15": [
+          {
+            "begin": "SYNMERGE_000001",
+            "end": "SYNMERGE_000009"
+          }
+        ],
+        "RFP 16": [
+          {
+            "begin": "SYNGAP_000001",
+            "end": "SYNGAP_000002"
+          },
+          {
+            "begin": "SYNGAP_000005",
+            "end": "SYNGAP_000009"
+          }
+        ]
+      },
+      "expectedWizard": {
+        "outcome": "complete",
+        "outputRows": 17,
+        "outputCells": 34,
+        "outputSizeBytes": 519,
+        "skippedRows": 0,
+        "formulaEscapes": 0,
+        "outputSha256": "73880f86bfd0ed9830e9d5f9d5628532a8d8e6e1f27b1f7ebf806d6503452269"
+      }
+    },
+    {
+      "id": "GEN-EW-PRV-STRESS-001",
+      "path": "generated/everlaw/privilege/valid/ew_privilege_stress_true_replacement.csv",
+      "platform": "everlaw",
+      "dataType": "privilege",
+      "classification": "privilege",
+      "origin": "generated",
+      "scenario": "output_stress_true_replacement",
+      "rowCount": 12,
+      "rowCountKind": "data_rows",
+      "columnCount": 8,
+      "encoding": "utf-8",
+      "lineEnding": "CRLF",
+      "rfpLayout": null,
+      "batesProfile": "synthetic SYNPRIV prefix and zero-padded digit-boundary ranges",
+      "expectedStatus": "valid",
+      "expectedErrors": [],
+      "expectedRfpRanges": {},
+      "expectedWizard": {
+        "outcome": "complete",
+        "outputRows": 12,
+        "outputCells": 72,
+        "outputSizeBytes": 797,
+        "skippedRows": 0,
+        "formulaEscapes": 1,
+        "outputSha256": "746ba3e26404ed9a51d9da05569992500ed69626653707c64a3826a4609db05f"
       }
     }
   ],
   "summary": {
-    "csvFixtureCount": 114,
+    "csvFixtureCount": 118,
     "sanitizedReferenceCount": 10,
-    "generatedCount": 104,
+    "generatedCount": 108,
     "generatedByPlatform": {
-      "logikcull": 53,
-      "everlaw": 51
+      "logikcull": 55,
+      "everlaw": 53
     },
     "generatedByType": {
-      "pleading": 51,
-      "privilege": 53
+      "pleading": 53,
+      "privilege": 55
     },
     "generatedExpectedStatus": {
-      "valid": 64,
+      "valid": 68,
       "validation_error": 32,
       "parse_error": 8
     }
@@ -273585,18 +273899,18 @@
     "sourceValuesRetained": false
   },
   "wizardAggregateExpectations": {
-    "fixtures": 114,
-    "inputRows": 186327,
-    "processable": 81,
-    "clean": 73,
+    "fixtures": 118,
+    "inputRows": 186387,
+    "processable": 85,
+    "clean": 77,
     "withWarnings": 8,
     "blocked": 33,
-    "pleadingOutputs": 40,
-    "privilegeOutputs": 41,
-    "outputRows": 132890,
-    "outputCells": 526664,
-    "outputSizeBytes": 11724446,
+    "pleadingOutputs": 42,
+    "privilegeOutputs": 43,
+    "outputRows": 132948,
+    "outputCells": 526876,
+    "outputSizeBytes": 11716250,
     "skippedRows": 238,
-    "formulaEscapes": 2
+    "formulaEscapes": 7
   }
 }

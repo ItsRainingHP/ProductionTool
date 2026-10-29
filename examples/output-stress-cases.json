@@ -1,0 +1,603 @@
+{
+  "schemaVersion": 1,
+  "notice": "All rows and labels are synthetic test data. Expected results are specified independently of the application processor.",
+  "cases": [
+    {
+      "id": "lc-rfp-stress",
+      "path": "generated/logikcull/pleading/valid/lc_pleading_stress_bates_endings.csv",
+      "platform": "logikcull",
+      "workflow": "rfp_ranges",
+      "expectedText": "RFP 01\r\nSYNSTRESS_000001-92\r\n\r\nRFP 02\r\nSYNSTRESS_000093-1596\r\n\r\nRFP 03\r\nSYNBOUND_000001-2\r\n\r\nRFP 04\r\nSYNBOUND_000009-10\r\n\r\nRFP 05\r\nSYNBOUND_000099-100\r\n\r\nRFP 06\r\nSYNBOUND_000999-1000\r\n\r\nRFP 07\r\nSYNBOUND_009999-10000\r\n\r\nRFP 08\r\nSYNBOUND_013473-15869\r\n\r\nRFP 09\r\nSYNBOUND_100000-100001\r\n\r\nRFP 10\r\nSYNSINGLE_000007\r\n\r\nRFP 11\r\n000001-9\r\n\r\nRFP 12\r\nSYNZERO_000000\r\n\r\nRFP 13\r\nSYNBIG_999999999999999998-999999999999999999\r\n\r\nRFP 14\r\nSYNWIDTH_00001-92\r\n\r\nRFP 15\r\nSYNMERGE_000001-9\r\n\r\nRFP 16\r\nSYNGAP_000001-2 and SYNGAP_000005-9\r\n",
+      "expectedRows": 17,
+      "expectedEscapes": 0
+    },
+    {
+      "id": "lc-privilege-on",
+      "path": "generated/logikcull/privilege/valid/lc_privilege_stress_true_replacement.csv",
+      "platform": "logikcull",
+      "workflow": "privilege_log",
+      "replaceTrueWithHeader": true,
+      "columns": [
+        {
+          "id": "bates",
+          "name": "Bates",
+          "source_fields": [
+            "Bates/Control #",
+            "End Bates/Control #"
+          ],
+          "transform": {
+            "kind": "shorten_bates",
+            "delimiter": null
+          },
+          "normalize": false
+        },
+        {
+          "id": "direct",
+          "name": "Direct",
+          "source_fields": [
+            "Tag: Attorney Client"
+          ],
+          "transform": {
+            "kind": "none",
+            "delimiter": null
+          },
+          "normalize": false
+        },
+        {
+          "id": "join",
+          "name": "Join",
+          "source_fields": [
+            "Tag: Attorney Client",
+            "tag: Work Product"
+          ],
+          "transform": {
+            "kind": "delimit",
+            "delimiter": "; "
+          },
+          "normalize": false
+        },
+        {
+          "id": "fill",
+          "name": "Fill",
+          "source_fields": [
+            "Tag:",
+            "Tag: Attorney Client",
+            "tag: Work Product",
+            "Subject"
+          ],
+          "transform": {
+            "kind": "fill",
+            "delimiter": null
+          },
+          "normalize": false
+        },
+        {
+          "id": "normalized",
+          "name": "Normalized",
+          "source_fields": [
+            "Tag: Attorney Client"
+          ],
+          "transform": {
+            "kind": "none",
+            "delimiter": null
+          },
+          "normalize": true
+        },
+        {
+          "id": "safety",
+          "name": "Safety",
+          "source_fields": [
+            "Tag: =Synthetic Formula"
+          ],
+          "transform": {
+            "kind": "none",
+            "delimiter": null
+          },
+          "normalize": false
+        }
+      ],
+      "expectedHeaders": [
+        "Bates",
+        "Direct",
+        "Join",
+        "Fill",
+        "Normalized",
+        "Safety"
+      ],
+      "expectedRows": [
+        [
+          "SYNPRIV_0000001-92",
+          "Attorney Client",
+          "Attorney Client; Work Product",
+          "Attorney Client",
+          "Attorney Client",
+          "'=Synthetic Formula"
+        ],
+        [
+          "SYNPRIV_0000093-1596",
+          "Attorney Client",
+          "Attorney Client; Work Product",
+          "Attorney Client",
+          "Attorney Client",
+          "'=Synthetic Formula"
+        ],
+        [
+          "SYNPRIV_0001597-1598",
+          "TRUETYPE",
+          "TRUETYPE; untrue",
+          "TRUETYPE",
+          "Truetype",
+          ""
+        ],
+        [
+          "SYNPRIV_0001599-1600",
+          "",
+          "Work Product",
+          "Work Product",
+          "",
+          "'=1+1"
+        ],
+        [
+          "SYNPRIV_0001601",
+          "",
+          "",
+          "Subject",
+          "",
+          ""
+        ],
+        [
+          "SYNPRIV_0009999-10000",
+          "Attorney Client",
+          "Attorney Client; FALSE",
+          "Attorney Client",
+          "Attorney Client",
+          "'=Synthetic Formula"
+        ],
+        [
+          "SYNPRIV_0013473-15869",
+          "Attorney Client",
+          "Attorney Client; Work Product",
+          "Attorney Client",
+          "Attorney Client",
+          ""
+        ],
+        [
+          "SYNPRIV_0100000-100001",
+          "TRUE_value",
+          "TRUE_value; truth",
+          "TRUE_value",
+          "True_Value",
+          ""
+        ],
+        [
+          "SYNPRIV_0200000-200001",
+          "",
+          "",
+          "Synthetic plain fallback",
+          "",
+          ""
+        ],
+        [
+          "SYNPRIV_0300000-300001",
+          "Attorney Client",
+          "Attorney Client; Work Product",
+          "Attorney Client",
+          "Attorney Client",
+          "FALSE"
+        ],
+        [
+          "SYNPRIV_0400000-400001",
+          "Attorney Client",
+          "Attorney Client; Work Product",
+          "Attorney Client",
+          "Attorney Client",
+          ""
+        ],
+        [
+          "SYNPRIV_0999999-1000000",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ]
+      ],
+      "expectedEscapes": 4
+    },
+    {
+      "id": "lc-privilege-off",
+      "path": "generated/logikcull/privilege/valid/lc_privilege_stress_true_replacement.csv",
+      "platform": "logikcull",
+      "workflow": "privilege_log",
+      "replaceTrueWithHeader": false,
+      "columns": [
+        {
+          "id": "bates",
+          "name": "Bates",
+          "source_fields": [
+            "Bates/Control #",
+            "End Bates/Control #"
+          ],
+          "transform": {
+            "kind": "shorten_bates",
+            "delimiter": null
+          },
+          "normalize": false
+        },
+        {
+          "id": "direct",
+          "name": "Direct",
+          "source_fields": [
+            "Tag: Attorney Client"
+          ],
+          "transform": {
+            "kind": "none",
+            "delimiter": null
+          },
+          "normalize": false
+        },
+        {
+          "id": "join",
+          "name": "Join",
+          "source_fields": [
+            "Tag: Attorney Client",
+            "tag: Work Product"
+          ],
+          "transform": {
+            "kind": "delimit",
+            "delimiter": "; "
+          },
+          "normalize": false
+        },
+        {
+          "id": "fill",
+          "name": "Fill",
+          "source_fields": [
+            "Tag:",
+            "Tag: Attorney Client",
+            "tag: Work Product",
+            "Subject"
+          ],
+          "transform": {
+            "kind": "fill",
+            "delimiter": null
+          },
+          "normalize": false
+        },
+        {
+          "id": "normalized",
+          "name": "Normalized",
+          "source_fields": [
+            "Tag: Attorney Client"
+          ],
+          "transform": {
+            "kind": "none",
+            "delimiter": null
+          },
+          "normalize": true
+        },
+        {
+          "id": "safety",
+          "name": "Safety",
+          "source_fields": [
+            "Tag: =Synthetic Formula"
+          ],
+          "transform": {
+            "kind": "none",
+            "delimiter": null
+          },
+          "normalize": false
+        }
+      ],
+      "expectedHeaders": [
+        "Bates",
+        "Direct",
+        "Join",
+        "Fill",
+        "Normalized",
+        "Safety"
+      ],
+      "expectedRows": [
+        [
+          "SYNPRIV_0000001-92",
+          "TRUE",
+          "TRUE; Contains a TRUE marker",
+          "TRUE",
+          "True",
+          "TRUE"
+        ],
+        [
+          "SYNPRIV_0000093-1596",
+          "prefix (tRuE) suffix",
+          "prefix (tRuE) suffix; (TRUE)",
+          "prefix (tRuE) suffix",
+          "Prefix (True) Suffix",
+          "(TrUe)"
+        ],
+        [
+          "SYNPRIV_0001597-1598",
+          "TRUETYPE",
+          "TRUETYPE; untrue",
+          "TRUETYPE",
+          "Truetype",
+          ""
+        ],
+        [
+          "SYNPRIV_0001599-1600",
+          "",
+          " true ",
+          " true ",
+          "",
+          "'=1+1"
+        ],
+        [
+          "SYNPRIV_0001601",
+          "",
+          "",
+          "TRUE",
+          "",
+          ""
+        ],
+        [
+          "SYNPRIV_0009999-10000",
+          "\"TRUE\"",
+          "\"TRUE\"; FALSE",
+          "\"TRUE\"",
+          "\"True\"",
+          "TRUE"
+        ],
+        [
+          "SYNPRIV_0013473-15869",
+          "TRUE-ish",
+          "TRUE-ish; not TRUE.",
+          "TRUE-ish",
+          "True-Ish",
+          ""
+        ],
+        [
+          "SYNPRIV_0100000-100001",
+          "TRUE_value",
+          "TRUE_value; truth",
+          "TRUE_value",
+          "True_Value",
+          ""
+        ],
+        [
+          "SYNPRIV_0200000-200001",
+          "",
+          "",
+          "Synthetic plain fallback",
+          "",
+          ""
+        ],
+        [
+          "SYNPRIV_0300000-300001",
+          "TRUE, FALSE",
+          "TRUE, FALSE; true",
+          "TRUE, FALSE",
+          "True, False",
+          "FALSE"
+        ],
+        [
+          "SYNPRIV_0400000-400001",
+          " true ",
+          " true ; Contains true; marker",
+          " true ",
+          " True ",
+          ""
+        ],
+        [
+          "SYNPRIV_0999999-1000000",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ]
+      ],
+      "expectedEscapes": 1
+    },
+    {
+      "id": "ew-rfp-stress",
+      "path": "generated/everlaw/pleading/valid/ew_pleading_stress_bates_endings.csv",
+      "platform": "everlaw",
+      "workflow": "rfp_ranges",
+      "expectedText": "RFP 01\r\nSYNSTRESS_000001-92\r\n\r\nRFP 02\r\nSYNSTRESS_000093-1596\r\n\r\nRFP 03\r\nSYNBOUND_000001-2\r\n\r\nRFP 04\r\nSYNBOUND_000009-10\r\n\r\nRFP 05\r\nSYNBOUND_000099-100\r\n\r\nRFP 06\r\nSYNBOUND_000999-1000\r\n\r\nRFP 07\r\nSYNBOUND_009999-10000\r\n\r\nRFP 08\r\nSYNBOUND_013473-15869\r\n\r\nRFP 09\r\nSYNBOUND_100000-100001\r\n\r\nRFP 10\r\nSYNSINGLE_000007\r\n\r\nRFP 11\r\n000001-9\r\n\r\nRFP 12\r\nSYNZERO_000000\r\n\r\nRFP 13\r\nSYNBIG_999999999999999998-999999999999999999\r\n\r\nRFP 14\r\nSYNWIDTH_00001-92\r\n\r\nRFP 15\r\nSYNMERGE_000001-9\r\n\r\nRFP 16\r\nSYNGAP_000001-2 and SYNGAP_000005-9\r\n",
+      "expectedRows": 17,
+      "expectedEscapes": 0
+    },
+    {
+      "id": "ew-privilege-on",
+      "path": "generated/everlaw/privilege/valid/ew_privilege_stress_true_replacement.csv",
+      "platform": "everlaw",
+      "workflow": "privilege_log",
+      "replaceTrueWithHeader": true,
+      "columns": [
+        {
+          "id": "bates",
+          "name": "Bates",
+          "source_fields": [
+            "Begin Bates num from SYNTHETIC_STRESS",
+            "End Bates num from SYNTHETIC_STRESS"
+          ],
+          "transform": {
+            "kind": "shorten_bates",
+            "delimiter": null
+          },
+          "normalize": false
+        },
+        {
+          "id": "direct",
+          "name": "Direct",
+          "source_fields": [
+            "Tag: Attorney Client"
+          ],
+          "transform": {
+            "kind": "none",
+            "delimiter": null
+          },
+          "normalize": false
+        },
+        {
+          "id": "join",
+          "name": "Join",
+          "source_fields": [
+            "Tag: Attorney Client",
+            "tag: Work Product"
+          ],
+          "transform": {
+            "kind": "delimit",
+            "delimiter": "; "
+          },
+          "normalize": false
+        },
+        {
+          "id": "fill",
+          "name": "Fill",
+          "source_fields": [
+            "Tag:",
+            "Tag: Attorney Client",
+            "tag: Work Product",
+            "Subject"
+          ],
+          "transform": {
+            "kind": "fill",
+            "delimiter": null
+          },
+          "normalize": false
+        },
+        {
+          "id": "normalized",
+          "name": "Normalized",
+          "source_fields": [
+            "Tag: Attorney Client"
+          ],
+          "transform": {
+            "kind": "none",
+            "delimiter": null
+          },
+          "normalize": true
+        },
+        {
+          "id": "safety",
+          "name": "Safety",
+          "source_fields": [
+            "Tag: =Synthetic Formula"
+          ],
+          "transform": {
+            "kind": "none",
+            "delimiter": null
+          },
+          "normalize": false
+        }
+      ],
+      "expectedHeaders": [
+        "Bates",
+        "Direct",
+        "Join",
+        "Fill",
+        "Normalized",
+        "Safety"
+      ],
+      "expectedRows": [
+        [
+          "SYNPRIV_0000001-92",
+          "TRUE",
+          "TRUE; Contains a TRUE marker",
+          "TRUE",
+          "True",
+          "TRUE"
+        ],
+        [
+          "SYNPRIV_0000093-1596",
+          "prefix (tRuE) suffix",
+          "prefix (tRuE) suffix; (TRUE)",
+          "prefix (tRuE) suffix",
+          "Prefix (True) Suffix",
+          "(TrUe)"
+        ],
+        [
+          "SYNPRIV_0001597-1598",
+          "TRUETYPE",
+          "TRUETYPE; untrue",
+          "TRUETYPE",
+          "Truetype",
+          ""
+        ],
+        [
+          "SYNPRIV_0001599-1600",
+          "",
+          " true ",
+          " true ",
+          "",
+          "'=1+1"
+        ],
+        [
+          "SYNPRIV_0001601",
+          "",
+          "",
+          "TRUE",
+          "",
+          ""
+        ],
+        [
+          "SYNPRIV_0009999-10000",
+          "\"TRUE\"",
+          "\"TRUE\"; FALSE",
+          "\"TRUE\"",
+          "\"True\"",
+          "TRUE"
+        ],
+        [
+          "SYNPRIV_0013473-15869",
+          "TRUE-ish",
+          "TRUE-ish; not TRUE.",
+          "TRUE-ish",
+          "True-Ish",
+          ""
+        ],
+        [
+          "SYNPRIV_0100000-100001",
+          "TRUE_value",
+          "TRUE_value; truth",
+          "TRUE_value",
+          "True_Value",
+          ""
+        ],
+        [
+          "SYNPRIV_0200000-200001",
+          "",
+          "",
+          "Synthetic plain fallback",
+          "",
+          ""
+        ],
+        [
+          "SYNPRIV_0300000-300001",
+          "TRUE, FALSE",
+          "TRUE, FALSE; true",
+          "TRUE, FALSE",
+          "True, False",
+          "FALSE"
+        ],
+        [
+          "SYNPRIV_0400000-400001",
+          " true ",
+          " true ; Contains true; marker",
+          " true ",
+          " True ",
+          ""
+        ],
+        [
+          "SYNPRIV_0999999-1000000",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ]
+      ],
+      "expectedEscapes": 1
+    }
+  ]
+}

@@ -520,6 +520,11 @@ export interface components {
         MappingConfig: {
             /** Columns */
             columns: components["schemas"]["OutputColumn"][];
+            /**
+             * Replace True With Header
+             * @default true
+             */
+            replace_true_with_header: boolean;
         };
         /** MappingTransform */
         MappingTransform: {

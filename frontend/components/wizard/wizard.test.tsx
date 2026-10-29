@@ -41,7 +41,7 @@ const reviewed = {
   output_stats: null, mapping: null, error: null,
 } as unknown as Job;
 const preview = {
-  headers: ["RFP", "Bates Range"], rows: [], text: "RFP 01\r\nABC0001-0002\r\n",
+  headers: ["RFP", "Bates Range"], rows: [], text: "RFP 01\r\nABC0001-2\r\n",
   total_rows: 1, skipped_rows: 1, formula_escapes: 0,
   configuration_revision: 1, sample_truncated: false,
 } as Preview;
@@ -211,7 +211,7 @@ describe("wizard recovery", () => {
     expect(setPleadingSettings).toHaveBeenCalledWith("job-1", { delimiter: "comma", include_and: true });
     expect(readyForReview).toHaveBeenCalledWith("job-1", []);
     await waitFor(() => expect(getPreview).toHaveBeenCalledWith("job-1", expect.any(AbortSignal)));
-    expect(await screen.findByText(/ABC0001-0002/)).toBeInTheDocument();
+    expect(await screen.findByText(/ABC0001-2/)).toBeInTheDocument();
   });
 
   it("preserves unsaved privilege mapping changes until review and submits the mapping", async () => {
@@ -229,7 +229,45 @@ describe("wizard recovery", () => {
     expect(screen.getByText(/Unsaved changes\. They are saved/)).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Review output" }));
     expect(await screen.findByRole("heading", { name: "Review your output" })).toBeVisible();
-    expect(setMapping).toHaveBeenCalledWith("job-1", { columns: [expect.objectContaining({ name: "Reviewer" })] });
+    expect(setMapping).toHaveBeenCalledWith("job-1", { columns: [expect.objectContaining({ name: "Reviewer" })], replace_true_with_header: true });
+  });
+
+  it("defaults TRUE replacement on, restores a disabled draft, discards it, and submits false", async () => {
+    navigation.segments = ["job-1", "advanced"];
+    const column = { id: "reason", name: "Reason", source_fields: ["Tag: RFP 01"],
+      transform: { kind: "none" as const, delimiter: null }, normalize: false };
+    const configured = { ...reviewed, status: "needs_configuration", workflow: "privilege_log",
+      analysis: { ...analysis, platform: "logikcull", issues: [] }, mapping: { columns: [column] } } as Job;
+    vi.mocked(getJob).mockResolvedValue(configured);
+    let view = render(<Providers><Wizard /></Providers>);
+    const label = "Replace cells containing TRUE with column headings";
+    expect(await screen.findByRole("checkbox", { name: label })).toBeChecked();
+    fireEvent.click(screen.getByRole("checkbox", { name: label }));
+    await waitFor(() => expect(JSON.parse(window.sessionStorage.getItem("production-tool.advanced-draft.v1.job-1") ?? "{}").replaceTrueWithHeader).toBe(false));
+    view.unmount();
+    view = render(<Providers><Wizard /></Providers>);
+    expect(await screen.findByRole("checkbox", { name: label })).not.toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Discard draft" }));
+    expect(screen.getByRole("checkbox", { name: label })).toBeChecked();
+    fireEvent.click(screen.getByRole("checkbox", { name: label }));
+    vi.mocked(setMapping).mockResolvedValue({ ...configured, mapping: { columns: [column], replace_true_with_header: false } });
+    vi.mocked(readyForReview).mockRejectedValue(new Error("Review unavailable"));
+    fireEvent.click(screen.getByRole("button", { name: "Review output" }));
+    await waitFor(() => expect(setMapping).toHaveBeenCalledWith("job-1", { columns: [column], replace_true_with_header: false }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Review unavailable");
+    view.unmount();
+    vi.mocked(getJob).mockResolvedValue({ ...configured, mapping: { columns: [column], replace_true_with_header: false } });
+    render(<Providers><Wizard /></Providers>);
+    expect(await screen.findByRole("checkbox", { name: label })).not.toBeChecked();
+  });
+
+  it.each(["everlaw", "unknown"] as const)("hides TRUE replacement for %s sources", async (platform) => {
+    navigation.segments = ["job-1", "advanced"];
+    vi.mocked(getJob).mockResolvedValue({ ...reviewed, status: "needs_configuration", workflow: "privilege_log",
+      analysis: { ...analysis, platform, issues: [] } });
+    render(<Providers><Wizard /></Providers>);
+    expect(await screen.findByRole("heading", { name: "Build privilege output" })).toBeVisible();
+    expect(screen.queryByRole("checkbox", { name: "Replace cells containing TRUE with column headings" })).not.toBeInTheDocument();
   });
 
   it("finalizes a reviewed CSV, exposes receipts, and clears the workspace on finish", async () => {

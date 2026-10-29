@@ -89,7 +89,7 @@ def test_rfp_job_lifecycle() -> None:
         assert download.status_code == 200
         assert download.headers["content-type"].startswith("text/plain")
         assert download.content.startswith(b"RFP 01\r\n")
-        assert b"SYNREFLCPLD001-0000001; SYNREFLCPLD001-0000005-0006" in download.content
+        assert b"SYNREFLCPLD001-0000001; SYNREFLCPLD001-0000005-6" in download.content
         assert b"RFP,Begin Bates,End Bates" not in download.content
         assert not download.content.startswith(b"\xef\xbb\xbf")
         json_receipt = client.get(f"/api/v1/jobs/{created['job_id']}/receipt.json")
@@ -148,6 +148,51 @@ def json_bytes(value: dict) -> bytes:
     import json
 
     return json.dumps(value).encode("utf-8")
+
+
+def test_true_replacement_default_toggle_invalidates_review_and_persists_in_receipts() -> None:
+    source = (
+        b"Bates/Control #,End Bates/Control #,Tag: Attorney Client\n"
+        b"EXAMPLE_000001,EXAMPLE_000092,Contains a TRUE marker\n"
+    )
+    mapping = {"columns": [
+        {"id": "reason", "name": "Reason", "source_fields": ["Tag: Attorney Client"]},
+    ]}
+    with TestClient(app) as client:
+        job_id, uploaded = _create_and_upload(client, "markers.csv", source)
+        assert uploaded.status_code == 202
+        assert client.put(f"/api/v1/jobs/{job_id}/workflow", json={"workflow": "privilege_log"}).status_code == 200
+        saved = client.put(f"/api/v1/jobs/{job_id}/mapping", json=mapping)
+        assert saved.status_code == 200
+        assert saved.json()["mapping"]["replace_true_with_header"] is True
+        assert client.post(f"/api/v1/jobs/{job_id}/review", json={}).status_code == 202
+        reviewed = _wait_job(client, job_id, {"ready_for_review", "failed"})
+        assert reviewed["status"] == "ready_for_review"
+        assert client.get(f"/api/v1/jobs/{job_id}/preview").json()["rows"] == [["Attorney Client"]]
+
+        disabled = {**mapping, "replace_true_with_header": False}
+        saved = client.put(f"/api/v1/jobs/{job_id}/mapping", json=disabled)
+        assert saved.status_code == 200
+        assert saved.json()["review_token"] is None
+        assert saved.json()["configuration_revision"] > reviewed["configuration_revision"]
+        assert saved.json()["staged_artifact_sha256"] is None
+        assert client.get(f"/api/v1/jobs/{job_id}").json()["mapping"]["replace_true_with_header"] is False
+        assert client.get(f"/api/v1/jobs/{job_id}/preview").status_code == 409
+        assert client.post(f"/api/v1/jobs/{job_id}/finalize", json={
+            "output_filename": "stale", "review_token": reviewed["review_token"],
+        }).status_code == 409
+        assert client.post(f"/api/v1/jobs/{job_id}/review", json={}).status_code == 202
+        reviewed = _wait_job(client, job_id, {"ready_for_review", "failed"})
+        assert reviewed["status"] == "ready_for_review"
+        assert client.get(f"/api/v1/jobs/{job_id}/preview").json()["rows"] == [["Contains a TRUE marker"]]
+        assert client.post(f"/api/v1/jobs/{job_id}/finalize", json={
+            "output_filename": "markers", "review_token": reviewed["review_token"],
+        }).status_code == 202
+        assert _wait_job(client, job_id, {"complete", "failed"})["status"] == "complete"
+        assert b"Contains a TRUE marker" in client.get(f"/api/v1/jobs/{job_id}/download").content
+        assert client.get(f"/api/v1/jobs/{job_id}/receipt.json").json()["mapping"]["replace_true_with_header"] is False
+        assert b'"replace_true_with_header":false' in client.get(f"/api/v1/jobs/{job_id}/receipt.txt").content
+        assert store.source_path(job_id).read_bytes() == source
 
 
 def test_mapping_blank_check_reports_output_gaps_without_saving_the_mapping() -> None:

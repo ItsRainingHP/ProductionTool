@@ -38,6 +38,8 @@ BEGIN_ALIASES = ("bates/control #", "begin bates")
 END_ALIASES = ("end bates/control #", "end bates")
 FORMULA_PREFIXES = ("=", "+", "-", "@", "＝", "＋", "－", "＠")
 BATES_PATTERN = re.compile(r"^(.*?)(\d+)$")
+TRUE_MARKER_PATTERN = re.compile(r"\btrue\b", re.IGNORECASE)
+TAG_PREFIX_PATTERN = re.compile(r"^tag:\s*", re.IGNORECASE)
 RFP_NUMBER_PATTERN = re.compile(r"^(?:tag:\s*)?(rfp|rog)(?:\s*:\s*(?:rfp|rog))?\s*(\d+)\b", re.IGNORECASE)
 NEXT_REQUEST_PATTERN = re.compile(
     r"[;,](?=\s*(?:tag:\s*)?(?:rfp|rog)(?:\s*:\s*(?:rfp|rog))?\s*\d+\b)", re.IGNORECASE
@@ -338,19 +340,10 @@ def shorten_bates(begin_value: str, end_value: str) -> str:
         return "-".join(value for value in (begin_value.strip(), end_value.strip()) if value)
     width = max(len(begin.number_text), len(end.number_text))
     begin_number = begin.number_text.zfill(width)
-    end_number = end.number_text.zfill(width)
     full_begin = f"{begin.prefix}{begin_number}"
     if begin.number == end.number:
         return full_begin
-    shared = 0
-    for left, right in zip(begin_number, end_number, strict=False):
-        if left != right:
-            break
-        shared += 1
-    # Keep every significant end digit so a range above 9999 is never displayed as a four-digit ending.
-    suffix_length = max(width - shared, min(4, width), len(str(end.number)))
-    shortened_end = end_number[-suffix_length:]
-    return f"{full_begin}-{shortened_end}"
+    return f"{full_begin}-{end.number}"
 
 
 def escape_formula(value: str) -> tuple[str, bool]:
@@ -837,31 +830,32 @@ def rfp_output_rows(path: Path, analysis: Analysis) -> tuple[list[str], list[lis
     return ["RFP", "Begin Bates", "End Bates"], output, skipped
 
 
-def _flag_header_value(field: str, value: str, flag_headers: set[str]) -> str:
-    return field if field in flag_headers and value.strip().casefold() == "true" else value
+def _true_header_value(field: str, value: str) -> str:
+    return TAG_PREFIX_PATTERN.sub("", field.strip()).strip() if TRUE_MARKER_PATTERN.search(value) else value
 
 
 def iter_privilege_output_rows(
     path: Path, mapping: MappingConfig, analysis: Analysis | None = None
 ) -> Iterator[list[str]]:
-    flag_headers = set(analysis.true_blank_headers) if analysis else set()
+    replace_true = mapping.replace_true_with_header and analysis is not None and analysis.platform == "logikcull"
     for row in _iter_dict_rows(path):
         result: list[str] = []
         for column in mapping.columns:
             values = [row.get(field, "") for field in column.source_fields]
+            if replace_true and column.transform.kind != "shorten_bates":
+                values = [
+                    _true_header_value(field, value)
+                    for field, value in zip(column.source_fields, values, strict=True)
+                ]
             if column.transform.kind == "none":
-                result.append(_flag_header_value(column.source_fields[0], values[0], flag_headers))
+                result.append(values[0])
             elif column.transform.kind == "shorten_bates":
                 result.append(shorten_bates(values[0], values[1]))
             elif column.transform.kind == "fill":
                 result.append(next((value for value in values if value.strip()), ""))
             else:
-                joined_values = [
-                    _flag_header_value(field, value, flag_headers)
-                    for field, value in zip(column.source_fields, values, strict=True)
-                ]
                 result.append(
-                    (column.transform.delimiter or "; ").join(value for value in joined_values if value.strip())
+                    (column.transform.delimiter or "; ").join(value for value in values if value.strip())
                 )
             if column.normalize:
                 result[-1] = normalize_contact_value(result[-1])
