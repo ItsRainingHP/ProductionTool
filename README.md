@@ -40,6 +40,7 @@ Upload clients must send the CSV bytes as a raw `PUT /api/v1/jobs/{job_id}/sourc
 - `deploy/` and `Dockerfile` — single-container production process configuration.
 
 Uploaded sources, generated outputs, receipts, and the SQLite job catalog are stored in `JOB_DATA_DIR`. They are ephemeral unless that directory is backed by a persistent volume. Jobs survive an application restart when that volume survives, and expired job directories are removed automatically.
+Pending review artifacts record the application version, build ID, source revision, and image digest that generated them. After a build change, older or unmarked pending artifacts and queued finalizations are invalidated. The uploaded CSV and settings are retained, and the job returns to Advanced to generate and review a new preview before finalizing. Existing completed downloads and their original receipts are retained until expiry or deletion.
 RFP processing scratch and SQLite disk-based temporary files also use the job volume, so capacity monitoring must include them.
 
 The canonical application version is stored in `VERSION`; `deploy/release-metadata.json` records the API/receipt schemas, digest-pinned base images, and qualified runtime versions. The production runtime uses Wolfi packages with SQLite 3.54.1 or newer, Python 3.14, and Node 22.23.4. The application retains UID/GID 999 for compatibility with existing job volumes. CI verifies this identity, the installed versions, and the production Python lockfile inside the image before testing the browser workflows.

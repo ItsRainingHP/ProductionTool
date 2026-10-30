@@ -171,6 +171,13 @@ class OutputStats(BaseModel):
     warnings_overridden: int
 
 
+class ProcessingBuild(BaseModel):
+    app_version: str
+    build_id: str
+    source_revision: str
+    image_digest: str
+
+
 class JobView(BaseModel):
     job_id: str
     created_at: str
@@ -189,6 +196,7 @@ class JobView(BaseModel):
     revision: int = 0
     configuration_revision: int = 0
     reviewed_configuration_revision: int | None = None
+    review_build: ProcessingBuild | None = None
     review_token: str | None = None
     staged_artifact_sha256: str | None = None
     staged_at: str | None = None

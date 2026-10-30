@@ -36,6 +36,7 @@ from .models import (
     MappingConfig,
     PleadingSettings,
     Preview,
+    ProcessingBuild,
     Receipt,
 )
 from .processor import (
@@ -64,6 +65,12 @@ LOGGER = logging.getLogger("production_tool.jobs")
 def log_event(event: str, **fields: object) -> None:
     """Emit a machine-readable event without source filenames or CSV content."""
     LOGGER.info(json.dumps({"event": event, **fields}, separators=(",", ":"), sort_keys=True))
+
+
+def current_build() -> ProcessingBuild:
+    return ProcessingBuild(
+        app_version=APP_VERSION, build_id=BUILD_ID, source_revision=SOURCE_REVISION, image_digest=IMAGE_DIGEST,
+    )
 
 
 class ResourceLimitError(RuntimeError):
@@ -190,6 +197,8 @@ class JobStore:
                         "delete_error='invalid_catalog_payload',cancel_requested=1 WHERE job_id=?",
                         (row["job_id"],),
                     )
+                    continue
+                if self._invalidate_outdated_review_locked(job, connection):
                     continue
                 self._repair_taskless_active_locked(job, row["task"], connection)
                 if row["task"] is None:
@@ -519,7 +528,10 @@ class JobStore:
 
     def get(self, job_id: str) -> JobView:
         with self._lock, self._connect() as connection:
-            return self._load_locked(job_id, connection)
+            connection.execute("BEGIN IMMEDIATE")
+            job = self._load_locked(job_id, connection)
+            self._invalidate_outdated_review_locked(job, connection)
+            return job
 
     async def upload(self, job_id: str, raw_filename: str, content_type: str, chunks: AsyncIterable[bytes]) -> JobView:
         raw_filename = raw_filename.strip()
@@ -677,6 +689,7 @@ class JobStore:
     def _invalidate_review(self, job: JobView) -> None:
         job.configuration_revision += 1
         job.reviewed_configuration_revision = None
+        job.review_build = None
         job.review_token = None
         job.staged_artifact_sha256 = None
         job.staged_at = None
@@ -684,6 +697,24 @@ class JobStore:
         job.reviewed_issue_codes = []
         job.output_filename = None
         job.output_stats = None
+
+    def _invalidate_outdated_review_locked(self, job: JobView, connection: sqlite3.Connection) -> bool:
+        if job.status not in {JobStatus.ready_for_review, JobStatus.processing} or job.review_build == current_build():
+            return False
+        if self._directory(job.job_id, require_exists=False).is_dir():
+            self._remove_outputs(job.job_id)
+        self._invalidate_review(job)
+        job.status = JobStatus.needs_configuration
+        job.progress = JobProgress(phase="New review required after application update", percent=100)
+        job.error = (
+            "The application was updated. Review your settings and generate a new preview before finalizing. "
+            "Your uploaded CSV and settings have been kept."
+        )
+        job.error_code = "review_build_changed"
+        self._set_reservation_locked(job.job_id, 0, connection)
+        self._save_locked(job, connection, preserve_task=False)
+        log_event("job_review_invalidated", job_id=job.job_id, error_code=job.error_code)
+        return True
 
     def _validate_acknowledgments(self, job: JobView, acknowledged: list[str]) -> list[str]:
         if job.analysis is None:
@@ -741,11 +772,15 @@ class JobStore:
     def enqueue_finalize(
         self, job_id: str, output_filename: str, acknowledged: list[str], review_token: str
     ) -> JobView:
+        # Commit any invalidation before rejecting the stale request.
+        self.get(job_id)
         with self._lock, self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             job = self._load_locked(job_id, connection)
             if job.status != JobStatus.ready_for_review:
                 raise HTTPException(409, "Prepare and review the current output before finalizing")
+            if job.review_build != current_build():
+                raise HTTPException(409, "The application changed; generate and review a new preview before finalizing")
             if not job.review_token or review_token != job.review_token:
                 raise HTTPException(409, "The review token is stale; prepare the output for review again")
             if job.reviewed_configuration_revision != job.configuration_revision:
@@ -889,6 +924,7 @@ class JobStore:
         log_event("job_analysis_finished", job_id=job_id, status=job.status.value)
 
     def _run_prepare_review(self, job_id: str, payload: dict, lease_token: str) -> None:
+        build = current_build()
         with self._lock, self._connect() as connection:
             if not self._lease_owned_locked(job_id, lease_token, connection):
                 return
@@ -929,6 +965,7 @@ class JobStore:
                 "input_sha256": review_input_sha256,
                 "artifact_sha256": artifact_sha256,
                 "configuration_revision": job.configuration_revision,
+                "build": build.model_dump(),
                 "acknowledged": payload["acknowledged"],
             },
             separators=(",", ":"),
@@ -946,6 +983,7 @@ class JobStore:
             job.review_stats = stats
             job.reviewed_issue_codes = payload["acknowledged"]
             job.reviewed_configuration_revision = job.configuration_revision
+            job.review_build = build
             job.review_token = review_token
             job.staged_artifact_sha256 = artifact_sha256
             job.staged_at = reviewed_at
@@ -962,6 +1000,8 @@ class JobStore:
             if not self._lease_owned_locked(job_id, lease_token, connection):
                 return
             job = self._load_locked(job_id, connection)
+            if self._invalidate_outdated_review_locked(job, connection):
+                return
             analysis = job.analysis
             workflow = job.workflow
             if analysis is None or workflow is None:
@@ -1002,15 +1042,15 @@ class JobStore:
     def _build_receipt(self, job: JobView, filename: str, acknowledged: list[str], stats, completed_at: str) -> Receipt:
         analysis = job.analysis
         workflow = job.workflow
-        if analysis is None or workflow is None:
+        if analysis is None or workflow is None or job.review_build is None:
             raise RuntimeError("The completed job configuration is incomplete")
         source = self.source_path(job.job_id)
         output = self._directory(job.job_id) / ("output.txt" if job.workflow == "rfp_ranges" else "output.csv")
         return Receipt(
-            app_version=APP_VERSION,
-            build_id=BUILD_ID,
-            source_revision=SOURCE_REVISION,
-            image_digest=IMAGE_DIGEST,
+            app_version=job.review_build.app_version,
+            build_id=job.review_build.build_id,
+            source_revision=job.review_build.source_revision,
+            image_digest=job.review_build.image_digest,
             job_id=job.job_id,
             created_at=job.created_at,
             uploaded_at=job.uploaded_at or job.created_at,

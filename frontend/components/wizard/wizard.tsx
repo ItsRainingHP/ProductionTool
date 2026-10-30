@@ -221,6 +221,7 @@ export function Wizard() {
         setJob(loaded);
         setAcknowledged(loaded.reviewed_issue_codes ?? []);
         if (loaded.status === "failed" && !loaded.analysis) setError(loaded.error ?? "CSV analysis failed. Choose the source CSV again.");
+        if (loaded.error_code === "review_build_changed") setError(loaded.error ?? "The application was updated. Generate and review a new preview before finalizing.");
         setSelectedWorkflow(loaded.workflow ?? (loaded.analysis?.detected_workflow === "unknown" ? null : loaded.analysis?.detected_workflow ?? null));
         if (loaded.mapping) setMappingColumns(loaded.mapping.columns);
         setReplaceTrueWithHeader(loaded.mapping?.replace_true_with_header ?? true);
@@ -254,6 +255,7 @@ export function Wizard() {
           if (!active || controller.signal.aborted) return;
           const destination = resumedAnalysis && current.analysis ? "data" : maximumStep(current);
           if (current.status === "failed" && !current.analysis) setError(current.error ?? "CSV analysis failed. Choose the source CSV again.");
+          if (current.error_code === "review_build_changed") setError(current.error ?? "The application was updated. Generate and review a new preview before finalizing.");
           setStep(destination);
           router.replace(`/wizard/${current.job_id}/${destination}`);
         }
@@ -398,8 +400,13 @@ export function Wizard() {
       setAdvancedDirty(false);
       updated = await readyForReview(job.job_id, acknowledged);
       setJob(updated);
-      updated = await pollJob(job.job_id, setJob, (current) => current.status === "ready_for_review" || current.status === "failed", controller.signal);
+      updated = await pollJob(job.job_id, setJob, (current) => current.status === "ready_for_review" || current.status === "failed" || current.error_code === "review_build_changed", controller.signal);
       controller.signal.throwIfAborted();
+      if (updated.error_code === "review_build_changed") {
+        setError(updated.error ?? "The application was updated. Generate and review a new preview before finalizing.");
+        navigate("advanced");
+        return;
+      }
       if (updated.status === "failed") throw new Error(updated.error ?? "Unable to prepare the exact review artifact.");
       setOutputFilename(defaultOutputFilename(updated.analysis?.filename ?? "production.csv", updated.workflow));
       navigate("review");
@@ -416,8 +423,13 @@ export function Wizard() {
       const updated = await finalizeJob(job.job_id, outputFilename, acknowledged, job.review_token);
       controller.signal.throwIfAborted();
       setJob(updated);
-      const completed = await pollJob(job.job_id, setJob, (current) => current.status === "complete" || current.status === "failed", controller.signal);
+      const completed = await pollJob(job.job_id, setJob, (current) => current.status === "complete" || current.status === "failed" || current.error_code === "review_build_changed", controller.signal);
       controller.signal.throwIfAborted();
+      if (completed.error_code === "review_build_changed") {
+        setError(completed.error ?? "The application was updated. Generate and review a new preview before finalizing.");
+        navigate("advanced");
+        return;
+      }
       if (completed.status === "failed") throw new Error(completed.error ?? "Unable to finalize the output.");
       navigate("download");
     } catch (reason) { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : "Unable to finalize the output."); }

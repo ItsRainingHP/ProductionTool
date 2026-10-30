@@ -102,6 +102,30 @@ describe("wizard recovery", () => {
     ));
   });
 
+  it.each(["The application was updated. Generate a new preview.", null])("requires Advanced review after an update (%s)", async (message) => {
+    navigation.segments = ["job-1", "review"];
+    vi.mocked(getJob).mockResolvedValue({ ...reviewed, status: "needs_configuration",
+      review_token: null, error_code: "review_build_changed", error: message });
+    render(<Providers><Wizard /></Providers>);
+    expect(await screen.findByRole("alert")).toHaveTextContent(message ?? "Generate and review a new preview");
+    expect(screen.getByRole("heading", { name: "Inspect pleading ranges" })).toBeVisible();
+    expect(navigation.replace).toHaveBeenCalledWith("/wizard/job-1/advanced");
+    expect(getPreview).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Finalize with warnings" })).not.toBeInTheDocument();
+  });
+
+  it.each(["The application was updated. Generate a new preview.", null])("shows an update notice after a queued finalization is invalidated (%s)", async (message) => {
+    navigation.segments = ["job-1", "review"];
+    vi.mocked(getJob).mockResolvedValueOnce({ ...reviewed, status: "processing" })
+      .mockResolvedValue({ ...reviewed, status: "needs_configuration", review_token: null,
+        error_code: "review_build_changed", error: message });
+    render(<Providers><Wizard /></Providers>);
+    expect(await screen.findByRole("alert")).toHaveTextContent(message ?? "Generate and review a new preview");
+    expect(screen.getByRole("heading", { name: "Inspect pleading ranges" })).toBeVisible();
+    expect(navigation.replace).toHaveBeenCalledWith("/wizard/job-1/advanced");
+    expect(getPreview).not.toHaveBeenCalled();
+  });
+
   it("blocks duplicate output column names before sending a mapping", async () => {
     navigation.segments = ["job-1", "advanced"];
     const column = { id: "one", name: "Author", source_fields: ["Begin Bates"],
@@ -110,6 +134,35 @@ describe("wizard recovery", () => {
       mapping: { columns: [column, { ...column, id: "two", name: "author" }] } } as Job);
     render(<Providers><Wizard /></Providers>);
     expect(await screen.findByRole("button", { name: "Review output" })).toBeDisabled();
+  });
+
+  it.each(["The application was updated. Generate a new preview.", null])("stops finalization polling when a build change requires review (%s)", async (message) => {
+    navigation.segments = ["job-1", "review"];
+    vi.mocked(getJob).mockResolvedValueOnce(reviewed)
+      .mockResolvedValue({ ...reviewed, status: "needs_configuration", review_token: null,
+        error_code: "review_build_changed", error: message });
+    vi.mocked(getPreview).mockResolvedValue(preview);
+    vi.mocked(finalizeJob).mockResolvedValue({ ...reviewed, status: "processing" });
+    render(<Providers><Wizard /></Providers>);
+    fireEvent.click(await screen.findByRole("button", { name: "Finalize with warnings" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(message ?? "Generate and review a new preview");
+    expect(screen.getByRole("heading", { name: "Inspect pleading ranges" })).toBeVisible();
+    expect(navigation.push).toHaveBeenCalledWith("/wizard/job-1/advanced");
+    expect(navigation.push).not.toHaveBeenCalledWith("/wizard/job-1/download");
+  });
+
+  it.each(["The application was updated. Generate a new preview.", null])("stops review preparation polling when a build change requires another preview (%s)", async (message) => {
+    navigation.segments = ["job-1", "advanced"];
+    const configured = { ...reviewed, status: "needs_configuration" as const };
+    vi.mocked(getJob).mockResolvedValueOnce(configured)
+      .mockResolvedValue({ ...configured, review_token: null, error_code: "review_build_changed", error: message });
+    vi.mocked(setPleadingSettings).mockResolvedValue(configured);
+    vi.mocked(readyForReview).mockResolvedValue({ ...reviewed, status: "preparing_review" });
+    render(<Providers><Wizard /></Providers>);
+    fireEvent.click(await screen.findByRole("button", { name: "Review output" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(message ?? "Generate and review a new preview");
+    expect(screen.getByRole("heading", { name: "Inspect pleading ranges" })).toBeVisible();
+    expect(navigation.push).not.toHaveBeenCalledWith("/wizard/job-1/review");
   });
 
   it("waits for a ready review before requesting its preview", async () => {
