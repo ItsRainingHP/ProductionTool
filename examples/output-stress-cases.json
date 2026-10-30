@@ -108,18 +108,18 @@
         [
           "SYNPRIV_0000001-92",
           "Attorney Client",
-          "Attorney Client; Work Product",
+          "Attorney Client; Contains a TRUE marker",
           "Attorney Client",
           "Attorney Client",
           "'=Synthetic Formula"
         ],
         [
           "SYNPRIV_0000093-1596",
-          "Attorney Client",
-          "Attorney Client; Work Product",
-          "Attorney Client",
-          "Attorney Client",
-          "'=Synthetic Formula"
+          "prefix (tRuE) suffix",
+          "prefix (tRuE) suffix; (TRUE)",
+          "prefix (tRuE) suffix",
+          "Prefix (True) Suffix",
+          "(TrUe)"
         ],
         [
           "SYNPRIV_0001597-1598",
@@ -141,24 +141,24 @@
           "SYNPRIV_0001601",
           "",
           "",
-          "Subject",
+          "TRUE in synthetic narrative",
           "",
           ""
         ],
         [
           "SYNPRIV_0009999-10000",
-          "Attorney Client",
-          "Attorney Client; FALSE",
-          "Attorney Client",
-          "Attorney Client",
+          "\"TRUE\"",
+          "\"TRUE\"; FALSE",
+          "\"TRUE\"",
+          "\"True\"",
           "'=Synthetic Formula"
         ],
         [
           "SYNPRIV_0013473-15869",
-          "Attorney Client",
-          "Attorney Client; Work Product",
-          "Attorney Client",
-          "Attorney Client",
+          "TRUE-ish",
+          "TRUE-ish; not TRUE.",
+          "TRUE-ish",
+          "True-Ish",
           ""
         ],
         [
@@ -179,16 +179,16 @@
         ],
         [
           "SYNPRIV_0300000-300001",
-          "Attorney Client",
-          "Attorney Client; Work Product",
-          "Attorney Client",
-          "Attorney Client",
+          "TRUE, FALSE",
+          "TRUE, FALSE; Work Product",
+          "TRUE, FALSE",
+          "True, False",
           "FALSE"
         ],
         [
           "SYNPRIV_0400000-400001",
           "Attorney Client",
-          "Attorney Client; Work Product",
+          "Attorney Client; Contains true; marker",
           "Attorney Client",
           "Attorney Client",
           ""
@@ -202,7 +202,7 @@
           ""
         ]
       ],
-      "expectedEscapes": 4
+      "expectedEscapes": 3
     },
     {
       "id": "lc-privilege-off",

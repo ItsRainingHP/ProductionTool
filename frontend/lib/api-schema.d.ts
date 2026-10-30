@@ -493,6 +493,7 @@ export interface components {
             configuration_revision: number;
             /** Reviewed Configuration Revision */
             reviewed_configuration_revision?: number | null;
+            review_build?: components["schemas"]["ProcessingBuild"] | null;
             /** Review Token */
             review_token?: string | null;
             /** Staged Artifact Sha256 */
@@ -627,6 +628,17 @@ export interface components {
             review_token?: string | null;
             /** Text */
             text?: string | null;
+        };
+        /** ProcessingBuild */
+        ProcessingBuild: {
+            /** App Version */
+            app_version: string;
+            /** Build Id */
+            build_id: string;
+            /** Source Revision */
+            source_revision: string;
+            /** Image Digest */
+            image_digest: string;
         };
         /** ReviewRequest */
         ReviewRequest: {

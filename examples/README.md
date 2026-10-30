@@ -20,7 +20,7 @@ Each generated platform/type set contains 15 valid or edge-valid fixtures and 10
 - People, entities, subjects, filenames, RFP descriptions, and narratives are explicitly marked synthetic.
 - Valid pleading results in the manifest contain contiguous ranges only. Gaps and different prefixes remain separate.
 - Focused privilege fixtures cover quoted and angle-bracket contact forms, one-word usernames, advisory personal-data findings, and normalization/formula-escaping interactions.
-- The Logikcull TRUE fixtures cover replacement of the entire cell when a standalone TRUE marker appears, including mixed text, while preserving blank cells and nonmatching words.
+- The Logikcull TRUE fixtures cover replacement only when the entire cell is TRUE, ignoring case and surrounding whitespace, while preserving mixed text, punctuation, blank cells, and nonmatching words.
 
 ## Output-change stress examples
 

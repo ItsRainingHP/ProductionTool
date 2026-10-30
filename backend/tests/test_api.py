@@ -152,10 +152,13 @@ def json_bytes(value: dict) -> bytes:
 
 def test_true_replacement_default_toggle_invalidates_review_and_persists_in_receipts() -> None:
     source = (
-        b"Bates/Control #,End Bates/Control #,Tag: Attorney Client\n"
-        b"EXAMPLE_000001,EXAMPLE_000092,Contains a TRUE marker\n"
+        b"Bates/Control #,End Bates/Control #,Subject,Tag: Attorney Client\n"
+        b"EXAMPLE_000001,EXAMPLE_000001,Re: True-up calculation for Q3,TRUE\n"
+        b"EXAMPLE_000002,EXAMPLE_000002,Is this statement true?,true\n"
+        b"EXAMPLE_000003,EXAMPLE_000003,True copy of signed agreement,  TrUe  \n"
     )
     mapping = {"columns": [
+        {"id": "subject", "name": "Subject", "source_fields": ["Subject"]},
         {"id": "reason", "name": "Reason", "source_fields": ["Tag: Attorney Client"]},
     ]}
     with TestClient(app) as client:
@@ -168,7 +171,11 @@ def test_true_replacement_default_toggle_invalidates_review_and_persists_in_rece
         assert client.post(f"/api/v1/jobs/{job_id}/review", json={}).status_code == 202
         reviewed = _wait_job(client, job_id, {"ready_for_review", "failed"})
         assert reviewed["status"] == "ready_for_review"
-        assert client.get(f"/api/v1/jobs/{job_id}/preview").json()["rows"] == [["Attorney Client"]]
+        assert client.get(f"/api/v1/jobs/{job_id}/preview").json()["rows"] == [
+            ["Re: True-up calculation for Q3", "Attorney Client"],
+            ["Is this statement true?", "Attorney Client"],
+            ["True copy of signed agreement", "Attorney Client"],
+        ]
 
         disabled = {**mapping, "replace_true_with_header": False}
         saved = client.put(f"/api/v1/jobs/{job_id}/mapping", json=disabled)
@@ -184,12 +191,21 @@ def test_true_replacement_default_toggle_invalidates_review_and_persists_in_rece
         assert client.post(f"/api/v1/jobs/{job_id}/review", json={}).status_code == 202
         reviewed = _wait_job(client, job_id, {"ready_for_review", "failed"})
         assert reviewed["status"] == "ready_for_review"
-        assert client.get(f"/api/v1/jobs/{job_id}/preview").json()["rows"] == [["Contains a TRUE marker"]]
+        assert client.get(f"/api/v1/jobs/{job_id}/preview").json()["rows"] == [
+            ["Re: True-up calculation for Q3", "TRUE"],
+            ["Is this statement true?", "true"],
+            ["True copy of signed agreement", "  TrUe  "],
+        ]
         assert client.post(f"/api/v1/jobs/{job_id}/finalize", json={
             "output_filename": "markers", "review_token": reviewed["review_token"],
         }).status_code == 202
         assert _wait_job(client, job_id, {"complete", "failed"})["status"] == "complete"
-        assert b"Contains a TRUE marker" in client.get(f"/api/v1/jobs/{job_id}/download").content
+        assert client.get(f"/api/v1/jobs/{job_id}/download").content.decode("utf-8-sig") == (
+            "Subject,Reason\r\n"
+            "Re: True-up calculation for Q3,TRUE\r\n"
+            "Is this statement true?,true\r\n"
+            "True copy of signed agreement,  TrUe  \r\n"
+        )
         assert client.get(f"/api/v1/jobs/{job_id}/receipt.json").json()["mapping"]["replace_true_with_header"] is False
         assert b'"replace_true_with_header":false' in client.get(f"/api/v1/jobs/{job_id}/receipt.txt").content
         assert store.source_path(job_id).read_bytes() == source

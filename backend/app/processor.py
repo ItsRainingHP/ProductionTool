@@ -38,7 +38,6 @@ BEGIN_ALIASES = ("bates/control #", "begin bates")
 END_ALIASES = ("end bates/control #", "end bates")
 FORMULA_PREFIXES = ("=", "+", "-", "@", "＝", "＋", "－", "＠")
 BATES_PATTERN = re.compile(r"^(.*?)(\d+)$")
-TRUE_MARKER_PATTERN = re.compile(r"\btrue\b", re.IGNORECASE)
 TAG_PREFIX_PATTERN = re.compile(r"^tag:\s*", re.IGNORECASE)
 RFP_NUMBER_PATTERN = re.compile(r"^(?:tag:\s*)?(rfp|rog)(?:\s*:\s*(?:rfp|rog))?\s*(\d+)\b", re.IGNORECASE)
 NEXT_REQUEST_PATTERN = re.compile(
@@ -831,7 +830,7 @@ def rfp_output_rows(path: Path, analysis: Analysis) -> tuple[list[str], list[lis
 
 
 def _true_header_value(field: str, value: str) -> str:
-    return TAG_PREFIX_PATTERN.sub("", field.strip()).strip() if TRUE_MARKER_PATTERN.search(value) else value
+    return TAG_PREFIX_PATTERN.sub("", field.strip()).strip() if value.strip().casefold() == "true" else value
 
 
 def iter_privilege_output_rows(

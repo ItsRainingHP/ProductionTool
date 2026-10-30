@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import sqlite3
 import threading
 import time
@@ -67,6 +68,7 @@ def test_startup_repairs_taskless_operations(
             output.write_text("reviewed artifact", encoding="utf-8")
             job.staged_artifact_sha256 = hashlib.sha256(output.read_bytes()).hexdigest()
             job.review_token = "current-token"
+            job.review_build = jobs_module.current_build()
         store._save_locked(job, connection, preserve_task=False)
         connection.execute("UPDATE jobs SET reserved_bytes=300 WHERE job_id=?", (created.job_id,))
 
@@ -89,7 +91,7 @@ def test_startup_repairs_taskless_operations(
 
 
 @pytest.mark.parametrize("status,task", [(JobStatus.analyzing, "analyze"), (JobStatus.processing, "finalize")])
-def test_legacy_job_catalog_imports_supported_queued_operations(
+def test_legacy_job_catalog_imports_analysis_and_invalidates_old_finalization(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, status: JobStatus, task: str,
 ) -> None:
     store = store_at(monkeypatch, tmp_path)
@@ -105,11 +107,16 @@ def test_legacy_job_catalog_imports_supported_queued_operations(
     (invalid / "job.json").write_text("{", encoding="utf-8")
 
     restored = store_at(monkeypatch, tmp_path)
-    assert restored.get(job.job_id).status == status
+    expected_status = JobStatus.needs_configuration if status == JobStatus.processing else status
+    assert restored.get(job.job_id).status == expected_status
     with restored._connect() as connection:
         row = connection.execute("SELECT task FROM jobs WHERE job_id=?", (job.job_id,)).fetchone()
-    assert row["task"] == task
-    assert restored._claim_task()[1] == task
+    assert row["task"] == (None if status == JobStatus.processing else task)
+    claimed = restored._claim_task()
+    if status == JobStatus.processing:
+        assert claimed is None
+    else:
+        assert claimed is not None and claimed[1] == task
     assert invalid.is_dir()
 
 
@@ -357,6 +364,7 @@ def reviewed_rfp(store: JobStore) -> str:
         job = store._load_locked(job_id, connection)
         job.status = JobStatus.ready_for_review
         job.review_token = "review-token"
+        job.review_build = jobs_module.current_build()
         job.staged_artifact_sha256 = sha256_file(staged)
         job.reviewed_configuration_revision = job.configuration_revision
         job.review_stats = OutputStats(processing_ms=1, input_rows=1, output_rows=1, output_columns=2,
@@ -364,6 +372,214 @@ def reviewed_rfp(store: JobStore) -> str:
                                        skipped_rows=0, formula_escapes=0, warnings_overridden=0)
         store._save_locked(job, connection, preserve_task=False)
     return job_id
+
+
+@pytest.mark.parametrize("status,task", [
+    (JobStatus.ready_for_review, None),
+    (JobStatus.processing, None),
+    (JobStatus.processing, "finalize"),
+])
+def test_2_0_3_legacy_review_requires_new_review_after_upgrade(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, status: JobStatus, task: str | None,
+) -> None:
+    monkeypatch.setattr(jobs_module, "APP_VERSION", "2.0.4")
+    store = store_at(monkeypatch, tmp_path, MAX_TOTAL_JOB_BYTES=10_000_000)
+    created = store.create()
+    directory = tmp_path / created.job_id
+    source = directory / "source.csv"
+    source.write_bytes(
+        b"Bates/Control #,End Bates/Control #,Subject,Tag: Attorney Client\r\n"
+        b"SYN_000001,SYN_000001,Re: True-up calculation for Q3,TRUE\r\n"
+        b"SYN_000002,SYN_000002,Is this statement true?,true\r\n"
+        b"SYN_000003,SYN_000003,True copy of signed agreement,TrUe\r\n"
+    )
+    original = source.read_bytes()
+    # Persist the actual pre-fix output shape and unversioned job schema from 2.0.3.
+    staged = directory / "staged.csv"
+    staged.write_bytes(b"\xef\xbb\xbfSubject,Reason\r\n" + b"Subject,Attorney Client\r\n" * 3)
+    mapping = MappingConfig.model_validate({"columns": [
+        {"id": "subject", "name": "Subject", "source_fields": ["Subject"]},
+        {"id": "flag", "name": "Reason", "source_fields": ["Tag: Attorney Client"]},
+    ]})
+    with store._connect() as connection:
+        job = store._load_locked(created.job_id, connection)
+        job.analysis = analyze_csv(source, "synthetic-upgrade-2.0.3.csv")
+        job.input_sha256 = sha256_file(source)
+        job.workflow = "privilege_log"
+        job.mapping = mapping
+        job.status = status
+        job.review_token = "2.0.3-review-token"
+        job.staged_artifact_sha256 = sha256_file(staged)
+        job.reviewed_configuration_revision = job.configuration_revision
+        job.review_stats = OutputStats(processing_ms=1, input_rows=3, output_rows=3, output_columns=2,
+                                       output_cells=6, output_size_bytes=staged.stat().st_size,
+                                       skipped_rows=0, formula_escapes=0, warnings_overridden=0)
+        store._save_locked(job, connection, task=task, task_payload={"output_filename": "old.csv", "acknowledged": []},
+                           preserve_task=False)
+        payload = job.model_dump(exclude={"review_build"})
+        connection.execute("UPDATE jobs SET payload=?,reserved_bytes=300 WHERE job_id=?",
+                           (json.dumps(payload), job.job_id))
+
+    upgraded = store_at(monkeypatch, tmp_path, MAX_TOTAL_JOB_BYTES=10_000_000)
+    restored = upgraded.get(job.job_id)
+    assert restored.status == JobStatus.needs_configuration
+    assert restored.error_code == "review_build_changed"
+    assert restored.review_token is None
+    assert restored.staged_artifact_sha256 is None
+    assert restored.mapping == mapping
+    assert source.read_bytes() == original
+    assert not staged.exists()
+    with upgraded._connect() as connection:
+        row = connection.execute(
+            "SELECT task,reserved_bytes,lease_token FROM jobs WHERE job_id=?", (job.job_id,),
+        ).fetchone()
+        assert tuple(row) == (None, 0, None)
+    with pytest.raises(HTTPException) as stale:
+        upgraded.enqueue_finalize(job.job_id, "old", [], "2.0.3-review-token")
+    assert stale.value.status_code == 409
+    with pytest.raises(HTTPException):
+        upgraded.preview(job.job_id, 5)
+    with pytest.raises(HTTPException):
+        upgraded.receipt_path(job.job_id, "json")
+
+    upgraded.mark_review_ready(job.job_id, [])
+    claimed = upgraded._claim_task()
+    assert claimed is not None
+    upgraded._run_prepare_review(job.job_id, claimed[2], claimed[3])
+    preview = upgraded.preview(job.job_id, 5)
+    assert preview.rows == [
+        ["Re: True-up calculation for Q3", "Attorney Client"],
+        ["Is this statement true?", "Attorney Client"],
+        ["True copy of signed agreement", "Attorney Client"],
+    ]
+    assert preview.review_token != "2.0.3-review-token"
+    with pytest.raises(HTTPException):
+        upgraded.enqueue_finalize(job.job_id, "old", [], "2.0.3-review-token")
+    assert preview.review_token is not None
+    upgraded.enqueue_finalize(job.job_id, "corrected", [], preview.review_token)
+    claimed = upgraded._claim_task()
+    assert claimed is not None
+    upgraded._run_finalize(job.job_id, claimed[2], claimed[3])
+    assert upgraded.get(job.job_id).status == JobStatus.complete
+    assert b"Re: True-up calculation for Q3" in upgraded.output_path(job.job_id)[0].read_bytes()
+    receipt = json.loads(upgraded.receipt_path(job.job_id, "json")[0].read_text(encoding="utf-8"))
+    assert receipt["app_version"] == "2.0.4"
+    assert receipt["image_digest"] == jobs_module.IMAGE_DIGEST
+    assert receipt["output_sha256"] == sha256_file(upgraded.output_path(job.job_id)[0])
+    assert source.read_bytes() == original
+
+
+@pytest.mark.parametrize("identity_field", ["app_version", "build_id", "source_revision", "image_digest"])
+def test_changed_build_review_is_invalidated_on_get(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, identity_field: str,
+) -> None:
+    store = store_at(monkeypatch, tmp_path)
+    job_id = reviewed_rfp(store)
+    with store._connect() as connection:
+        job = store._load_locked(job_id, connection)
+        assert job.review_build is not None
+        setattr(job.review_build, identity_field, "older-build")
+        store._save_locked(job, connection)
+    restored = store.get(job_id)
+    assert restored.status == JobStatus.needs_configuration
+    assert restored.review_build is None
+    assert restored.error_code == "review_build_changed"
+    assert (tmp_path / job_id / "source.csv").is_file()
+    assert not (tmp_path / job_id / "staged.txt").exists()
+
+
+def test_current_build_review_survives_restart(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    store = store_at(monkeypatch, tmp_path)
+    job_id = reviewed_rfp(store)
+    restored = store_at(monkeypatch, tmp_path).get(job_id)
+    assert restored.status == JobStatus.ready_for_review
+    assert restored.review_token == "review-token"
+    assert restored.review_build == jobs_module.current_build()
+    assert (tmp_path / job_id / "staged.txt").is_file()
+
+
+def test_current_build_queued_finalization_survives_restart(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    store = store_at(monkeypatch, tmp_path, MAX_TOTAL_JOB_BYTES=10_000_000)
+    job_id = reviewed_rfp(store)
+    original = (tmp_path / job_id / "staged.txt").read_bytes()
+    store.enqueue_finalize(job_id, "ranges", [], "review-token")
+    restarted = store_at(monkeypatch, tmp_path, MAX_TOTAL_JOB_BYTES=10_000_000)
+    assert restarted.get(job_id).status == JobStatus.processing
+    claimed = restarted._claim_task()
+    assert claimed is not None
+    restarted._run_finalize(job_id, claimed[2], claimed[3])
+    assert restarted.output_path(job_id)[0].read_bytes() == original
+    receipt = json.loads(restarted.receipt_path(job_id, "json")[0].read_text(encoding="utf-8"))
+    assert receipt["app_version"] == jobs_module.APP_VERSION
+
+
+def test_completed_legacy_output_and_receipt_survive_upgrade(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    store = store_at(monkeypatch, tmp_path)
+    job_id = reviewed_rfp(store)
+    directory = tmp_path / job_id
+    original = (directory / "staged.txt").read_bytes()
+    (directory / "staged.txt").replace(directory / "output.txt")
+    receipt = b'{"app_version":"2.0.3"}\n'
+    (directory / "receipt.json").write_bytes(receipt)
+    with store._connect() as connection:
+        job = store._load_locked(job_id, connection)
+        job.status = JobStatus.complete
+        job.review_build = None
+        store._save_locked(job, connection)
+    upgraded = store_at(monkeypatch, tmp_path)
+    assert upgraded.get(job_id).status == JobStatus.complete
+    assert upgraded.output_path(job_id)[0].read_bytes() == original
+    assert upgraded.receipt_path(job_id, "json")[0].read_bytes() == receipt
+
+
+def test_upgrade_does_not_fail_startup_for_missing_legacy_job_directory(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    store = store_at(monkeypatch, tmp_path)
+    job_id = reviewed_rfp(store)
+    with store._connect() as connection:
+        job = store._load_locked(job_id, connection)
+        job.review_build = None
+        store._save_locked(job, connection)
+    directory = tmp_path / job_id
+    for file in directory.iterdir():
+        file.unlink()
+    directory.rmdir()
+    restarted = store_at(monkeypatch, tmp_path)
+    other = restarted.create()
+    assert restarted.get(other.job_id).status == JobStatus.awaiting_upload
+
+
+def test_finalize_worker_invalidates_older_build_after_task_claim(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    store = store_at(monkeypatch, tmp_path)
+    job_id, token = processing_job(store)
+    with store._connect() as connection:
+        job = store._load_locked(job_id, connection)
+        job.review_build = None
+        store._save_locked(job, connection)
+    store._run_finalize(job_id, {"output_filename": "old.txt", "acknowledged": []}, token)
+    assert store.get(job_id).status == JobStatus.needs_configuration
+    assert not (tmp_path / job_id / "output.txt").exists()
+    assert not (tmp_path / job_id / "receipt.json").exists()
+
+
+def test_finalize_checks_build_again_inside_transaction(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    store = store_at(monkeypatch, tmp_path)
+    job_id = reviewed_rfp(store)
+    with store._connect() as connection:
+        job = store._load_locked(job_id, connection)
+        job.review_build = None
+        store._save_locked(job, connection)
+    monkeypatch.setattr(store, "get", lambda _job_id: job)
+    with pytest.raises(HTTPException, match="application changed") as rejected:
+        store.enqueue_finalize(job_id, "old", [], "review-token")
+    assert rejected.value.status_code == 409
 
 
 def test_catalog_migration_and_missing_or_corrupt_records(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

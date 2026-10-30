@@ -1,6 +1,6 @@
 {
   "name": "production-tool-web",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "Web interface for converting discovery CSV exports into RFP ranges and privilege logs.",
   "author": "Brent Coleman",
   "license": "MIT",

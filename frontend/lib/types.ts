@@ -24,7 +24,7 @@ type OutputStats = Schema["OutputStats"];
 export type Preview = Schema["Preview"];
 
 type JobStatus = Schema["JobStatus"];
-export type Job = Omit<Required<Schema["JobView"]>, "status" | "analysis" | "mapping" | "pleading_settings" | "output_stats"> & {
+export type Job = Omit<Required<Schema["JobView"]>, "status" | "analysis" | "mapping" | "pleading_settings" | "output_stats" | "review_build"> & Pick<Schema["JobView"], "review_build"> & {
   status: JobStatus;
   analysis: Analysis | null;
   mapping: MappingConfig | null;

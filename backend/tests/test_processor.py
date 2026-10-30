@@ -214,6 +214,65 @@ def test_privilege_blank_counts_follow_output_transforms(tmp_path: Path) -> None
     assert report.blank_cells == [2, 1, 1, 0]
 
 
+@pytest.mark.parametrize("enabled", [True, False])
+@pytest.mark.parametrize(("value", "is_true"), [
+    ("TRUE", True),
+    ("true", True),
+    ("TrUe", True),
+    ("  true  ", True),
+    ("\tTrUe\r\n", True),
+    ("\u00a0TRUE\u00a0", True),
+    ("Re: True-up calculation for Q3", False),
+    ("Is this statement true?", False),
+    ("True copy of signed agreement", False),
+    ("Contains a TRUE marker", False),
+    ("(TRUE)", False),
+    ('"TRUE"', False),
+    ("TRUE-ish", False),
+    ("not TRUE.", False),
+    ("TRUE, FALSE", False),
+    ("TRUE\nnotes", False),
+    ("TRUETYPE", False),
+    ("untrue", False),
+    ("TRUE_value", False),
+    ("FALSE", False),
+    ("", False),
+    ("   ", False),
+])
+def test_logikcull_replaces_only_entire_true_cells(
+    tmp_path: Path, enabled: bool, value: str, is_true: bool,
+) -> None:
+    source = tmp_path / "whole-cell-true.csv"
+    with source.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(["Bates/Control #", "End Bates/Control #", "Subject", "Tag: Attorney Client", "Fallback"])
+        writer.writerow(["SYN_000001", "SYN_000001", value, value, "Fallback text"])
+    original = source.read_bytes()
+    analysis = analyze_csv(source, source.name)
+    assert analysis.platform == "logikcull"
+    mapping = MappingConfig.model_validate({"replace_true_with_header": enabled, "columns": [
+        {"id": "subject", "name": "Subject", "source_fields": ["Subject"]},
+        {"id": "flag", "name": "Flag", "source_fields": ["Tag: Attorney Client"]},
+        {"id": "join", "name": "Join", "source_fields": ["Subject", "Tag: Attorney Client"],
+         "transform": {"kind": "delimit", "delimiter": "; "}},
+        {"id": "fill", "name": "Fill", "source_fields": ["Subject", "Fallback"],
+         "transform": {"kind": "fill"}},
+    ]})
+    subject, flag = ("Subject", "Attorney Client") if enabled and is_true else (value, value)
+    expected = [[subject, flag, f"{subject}; {flag}" if value.strip() else "",
+                 subject if value.strip() else "Fallback text"]]
+    assert list(iter_privilege_output_rows(source, mapping, analysis)) == expected
+    assert count_privilege_blank_cells(source, mapping, analysis).blank_cells == (
+        [0, 0, 0, 0] if value.strip() else [1, 1, 1, 0]
+    )
+    assert build_preview(source, analysis, "privilege_log", mapping).rows == expected
+    output = tmp_path / "output.csv"
+    write_output(output, source, analysis, "privilege_log", mapping, 0)
+    with output.open(encoding="utf-8-sig", newline="") as handle:
+        assert list(csv.reader(handle))[1:] == expected
+    assert source.read_bytes() == original
+
+
 def test_logikcull_true_markers_use_headers_in_direct_and_join(tmp_path: Path) -> None:
     source = CORPUS / "generated/logikcull/privilege/valid/lc_privilege_feature_true_blank_flags.csv"
     analysis = analyze_csv(source, source.name)
@@ -228,7 +287,7 @@ def test_logikcull_true_markers_use_headers_in_direct_and_join(tmp_path: Path) -
     ]})
     expected = [
         ["Attorney Client", "Attorney Client", "Mixed Notes", ""],
-        ["", "Work Product", "Mixed Notes", ""],
+        ["", "Work Product", "Contains a TRUE marker", ""],
         ["Attorney Client", "Attorney Client; Work Product", "Mixed Notes", ""],
     ]
     assert list(iter_privilege_output_rows(source, mapping, analysis)) == expected
@@ -294,7 +353,7 @@ def test_true_replacement_precedes_direct_join_fill_and_normalization(tmp_path: 
     source = tmp_path / "true-markers.csv"
     source.write_text(
         'Bates/Control #,End Bates/Control #,Tag: ATTORNEY CLIENT,tag: Work Product,Other,Tag: =Formula\n'
-        'EXAMPLE_000001,EXAMPLE_000092,Contains a TRUE marker,(TrUe),fallback,TRUE\n'
+        'EXAMPLE_000001,EXAMPLE_000092,TrUe,TRUE,fallback,TRUE\n'
         'EXAMPLE_000093,EXAMPLE_000094,TRUETYPE,FALSE,,\n'
         'EXAMPLE_000095,EXAMPLE_000096,,  true  ,last,\n',
         encoding="utf-8",
@@ -319,7 +378,7 @@ def test_true_replacement_precedes_direct_join_fill_and_normalization(tmp_path: 
                            "Attorney Client", "=Formula", "EXAMPLE_000001-92"]
         assert rows[2][1:3] == ["Work Product", "Work Product"]
     else:
-        assert rows[0][:3] == ["Contains a TRUE marker", "Contains a TRUE marker; (TrUe)", "Contains a TRUE marker"]
+        assert rows[0][:3] == ["TrUe", "TrUe; TRUE", "TrUe"]
         assert rows[0][4] == "TRUE"
         assert rows[2][1:3] == ["  true  ", "  true  "]
     assert rows[1][:3] == ["TRUETYPE", "TRUETYPE; FALSE", "TRUETYPE"]
