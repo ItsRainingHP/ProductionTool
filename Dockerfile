@@ -35,7 +35,7 @@ RUN python3.14 -m venv /opt/venv \
     && /opt/venv/bin/python -m pip uninstall --yes pip
 
 FROM runtime-base AS runtime
-ARG RELEASE_VERSION=2.0.3
+ARG RELEASE_VERSION=2.0.4
 ARG VCS_REF=unversioned
 ARG BUILD_DATE=unknown
 LABEL org.opencontainers.image.title="Production Tool" \

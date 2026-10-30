@@ -9,7 +9,7 @@ Production Tool converts Everlaw and Logikcull CSV exports into formatted RFP/pl
 - Groups shortened, contiguous Bates ranges beneath each RFP heading.
 - Builds privilege logs with direct fields, shortened Bates ranges, delimited combinations, and ordered first-nonblank fallback fields.
 - Uses unpadded ending numbers in shortened Bates ranges, for example `EXAMPLE_000001-92`.
-- Replaces Logikcull privilege cells containing the standalone word `TRUE` with their source heading, excluding a leading `Tag:`, before Direct, Join, or Fill. This Advanced option defaults to enabled and can be turned off for each job.
+- Replaces Logikcull privilege cells only when their entire value is `TRUE`, ignoring case and surrounding whitespace, with their source heading, excluding a leading `Tag:`, before Direct, Join, or Fill. Text containing `TRUE` is preserved. This Advanced option defaults to enabled and can be turned off for each job.
 - Provides configurable pleading separators and an optional final “and.”
 - Reports advisory-only findings for possible Social Security numbers, dates of birth, consumer email domains, and one-word names or usernames in people fields.
 - Optionally normalizes contact text while protecting generated CSV cells from spreadsheet-formula execution.
@@ -76,7 +76,7 @@ The CI workflow calls `.github/workflows/docker-publish.yml` only after the back
 - `DOCKER_USERNAME` — the Docker Hub account or organization that owns the image.
 - `DOCKER_PASSWORD` — a Docker Hub personal access token with read/write permission.
 
-Create a Docker Hub repository named `production-tool` in that namespace before the first run and select the approved visibility. Images are published to `docker.io/<docker-username>/production-tool`. A push to `main` publishes `main`, `latest`, and `sha-<full-commit>` tags. A tag such as `v2.0.3` must match `VERSION`; it publishes `2.0.3`, `latest`, and the commit tag. The workflow summary records the resulting OCI digest.
+Create a Docker Hub repository named `production-tool` in that namespace before the first run and select the approved visibility. Images are published to `docker.io/<docker-username>/production-tool`. A push to `main` publishes `main`, `latest`, and `sha-<full-commit>` tags. A tag such as `v2.0.4` must match `VERSION`; it publishes `2.0.4`, `latest`, and the commit tag. The workflow summary records the resulting OCI digest.
 
 Mutable tags are convenient for discovery, but production deployments must pin the digest reported by the successful workflow:
 

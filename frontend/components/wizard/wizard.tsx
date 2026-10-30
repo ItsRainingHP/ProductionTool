@@ -641,7 +641,7 @@ export function Wizard() {
                           onToggle={() => { setReplaceTrueWithHeader((current) => !current); setAdvancedDirty(true); }}
                         />
                         <Text variant="body-default-xs" onBackground="neutral-weak">
-                          Replaces the entire cell when it contains the standalone word TRUE with its source heading, excluding a leading Tag:, before Direct, Join, or Fill.
+                          Replaces a cell only when its entire value is TRUE, ignoring case and surrounding whitespace. Uses the source heading without a leading Tag: before Direct, Join, or Fill. Text containing TRUE is preserved.
                         </Text>
                       </Column>
                     )}

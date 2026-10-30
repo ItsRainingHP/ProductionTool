@@ -7,10 +7,11 @@
 
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const fixtures = path.resolve(__dirname, "../../examples");
+const trueEvidence = path.resolve(__dirname, "../../artifacts/true-cell-regression");
 
 async function upload(page: Page, relativePath: string) {
   await page.goto("/wizard");
@@ -113,13 +114,20 @@ test("privilege wizard produces a spreadsheet-safe CSV", async ({ page }) => {
 
 for (const enabled of [true, false]) {
   test(`Logikcull TRUE replacement ${enabled ? "enabled" : "disabled"} persists through review and download`, async ({ page, request }) => {
+    const mode = enabled ? "enabled" : "disabled";
+    const releaseVersion = (await readFile(path.resolve(__dirname, "../../VERSION"), "utf8")).trim();
+    await mkdir(trueEvidence, { recursive: true });
+    await page.setViewportSize({ width: 1600, height: 1100 });
     await page.goto("/wizard");
     await page.locator('input[type="file"]').setInputFiles({
       name: "synthetic-true-markers.csv", mimeType: "text/csv",
       buffer: Buffer.from(
-        "Bates/Control #,End Bates/Control #,Tag: Attorney Client,Tag: Work Product\n"
-        + "EXAMPLE_000001,EXAMPLE_000092,Contains a TRUE marker,(TrUe)\n"
-        + "EXAMPLE_000093,EXAMPLE_001596,TRUETYPE,FALSE\n",
+        "Bates/Control #,End Bates/Control #,Subject,Tag: Attorney Client,Tag: Work Product\n"
+        + "EXAMPLE_000001,EXAMPLE_000092,Re: True-up calculation for Q3,TRUE,true\n"
+        + "EXAMPLE_000093,EXAMPLE_001596,Is this statement true?,TrUe,  true  \n"
+        + "EXAMPLE_001597,EXAMPLE_001598,True copy of signed agreement,TRUE,FALSE\n"
+        + "EXAMPLE_001599,EXAMPLE_001600,Contains a TRUE marker,(TrUe),TRUE-ish\n"
+        + "EXAMPLE_001601,EXAMPLE_001601,TRUETYPE,,\n",
       ),
     });
     await page.getByRole("button", { name: "Continue" }).click();
@@ -136,9 +144,20 @@ for (const enabled of [true, false]) {
     await page.getByRole("button", { name: "Discard draft" }).click();
     await expect(checkbox).toBeChecked();
     if (!enabled) await checkbox.uncheck();
+    await expect(page.getByText(/only when its entire value is TRUE/)).toBeVisible();
+    await page.screenshot({ path: path.join(trueEvidence, `${mode}-settings.png`), fullPage: true, animations: "disabled" });
     await page.getByRole("button", { name: "Review output" }).click();
     await expect(page.getByRole("heading", { name: "Review your output" })).toBeVisible();
-    await expect(page.getByRole("cell", { name: enabled ? "Attorney Client" : "Contains a TRUE marker", exact: true })).toBeVisible();
+    const expectedRows = [
+      ["EXAMPLE_000001-92", "Re: True-up calculation for Q3", enabled ? "Attorney Client" : "TRUE", enabled ? "Work Product" : "true"],
+      ["EXAMPLE_000093-1596", "Is this statement true?", enabled ? "Attorney Client" : "TrUe", enabled ? "Work Product" : "  true  "],
+      ["EXAMPLE_001597-1598", "True copy of signed agreement", enabled ? "Attorney Client" : "TRUE", "FALSE"],
+      ["EXAMPLE_001599-1600", "Contains a TRUE marker", "(TrUe)", "TRUE-ish"],
+      ["EXAMPLE_001601", "TRUETYPE", "", ""],
+    ];
+    for (const row of expectedRows) {
+      await expect(page.getByRole("cell", { name: row[1], exact: true })).toBeVisible();
+    }
     await page.getByRole("button", { name: "Previous" }).click();
     await expect(checkbox).toBeChecked({ checked: enabled });
     // The view updates before Next commits the URL; reload the Advanced route.
@@ -146,15 +165,27 @@ for (const enabled of [true, false]) {
     await page.reload();
     await expect(checkbox).toBeChecked({ checked: enabled });
     await page.getByRole("button", { name: "Review output" }).click();
-    await page.getByRole("button", { name: "Finalize CSV" }).click();
-    const text = await downloadText(page, /Download CSV/);
-    expect(text).toContain(enabled
-      ? "EXAMPLE_000001-92,Attorney Client,Work Product"
-      : "EXAMPLE_000001-92,Contains a TRUE marker,(TrUe)");
-    expect(text).toContain("EXAMPLE_000093-1596,TRUETYPE,FALSE");
+    await expect(page.getByRole("heading", { name: "Review your output" })).toBeVisible();
     const jobId = new URL(page.url()).pathname.split("/")[2];
+    const preview = await (await request.get(`/api/v1/jobs/${jobId}/preview`)).json();
+    expect(preview.rows).toEqual(expectedRows);
+    await page.evaluate(() => document.fonts.ready);
+    await page.screenshot({ path: path.join(trueEvidence, `${mode}-review.png`), fullPage: true, animations: "disabled" });
+    await page.getByRole("button", { name: "Finalize CSV" }).click();
+    await expect(page.getByRole("heading", { name: "Your CSV is ready" })).toBeVisible();
+    await page.screenshot({ path: path.join(trueEvidence, `${mode}-output.png`), fullPage: true, animations: "disabled" });
+    const text = await downloadText(page, /Download CSV/);
+    expect(text).toBe("\ufeff" + [["Bates Range", "Subject", "Tag: Attorney Client", "Tag: Work Product"], ...expectedRows]
+      .map(row => row.join(",")).join("\r\n") + "\r\n");
+    await writeFile(path.join(trueEvidence, `${mode}.csv`), text);
     const receipt = await request.get(`/api/v1/jobs/${jobId}/receipt.json`);
-    expect((await receipt.json()).mapping.replace_true_with_header).toBe(enabled);
+    const receiptJson = await receipt.json();
+    expect(receiptJson.mapping.replace_true_with_header).toBe(enabled);
+    expect(receiptJson.app_version).toBe(releaseVersion);
+    await writeFile(path.join(trueEvidence, `${mode}-receipt.json`), JSON.stringify(receiptJson, null, 2) + "\n");
+    const receiptText = await (await request.get(`/api/v1/jobs/${jobId}/receipt.txt`)).text();
+    expect(receiptText).toContain(releaseVersion);
+    await writeFile(path.join(trueEvidence, `${mode}-receipt.txt`), receiptText);
     await request.delete(`/api/v1/jobs/${jobId}`);
   });
 }
