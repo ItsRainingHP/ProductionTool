@@ -336,6 +336,8 @@ describe("wizard recovery", () => {
     vi.mocked(finalizeJob).mockResolvedValue({ ...privilege, status: "processing" });
     vi.mocked(deleteJob).mockResolvedValue("deleted");
     render(<Providers><Wizard /></Providers>);
+    expect(await screen.findByRole("cell", { name: "Reviewer" })).toBeVisible();
+    expect(screen.getByRole("columnheader", { name: "Author" })).toBeVisible();
     fireEvent.click(await screen.findByRole("button", { name: "Finalize CSV" }));
     expect(await screen.findByRole("heading", { name: "Your CSV is ready" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Download CSV" })).toHaveAttribute("href", "/api/v1/jobs/job-1/download");
