@@ -382,6 +382,7 @@ def reviewed_rfp(store: JobStore) -> str:
 def test_2_0_3_legacy_review_requires_new_review_after_upgrade(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, status: JobStatus, task: str | None,
 ) -> None:
+    monkeypatch.setattr(jobs_module, "APP_VERSION", "2.0.4")
     store = store_at(monkeypatch, tmp_path, MAX_TOTAL_JOB_BYTES=10_000_000)
     created = store.create()
     directory = tmp_path / created.job_id
