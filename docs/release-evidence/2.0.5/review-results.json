@@ -2,6 +2,7 @@
   "schema_version": 1,
   "application_version": "2.0.5",
   "reviewed_source_commit": "261c359bc57bf825fd11da9c1dba4031d6097df2",
+  "evidence_scope": "Historical qualification of reviewed_source_commit. The dependency remediation and current merge readiness are documented by the latest PR 44 checks and review comment; the finding below records the original baseline.",
   "verdict": "functional_review_passed_release_security_gate_blocked",
   "release_ready": false,
   "remaining_findings": [

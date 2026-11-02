@@ -74,6 +74,11 @@ jobs:
       - name: Audit all frontend dependencies
         working-directory: frontend
         run: npm audit --audit-level=low
+      - name: Verify secure tooling compatibility
+        working-directory: frontend
+        run: |
+          npm ls --all
+          npm run test:tooling
       - name: Type-check
         working-directory: frontend
         run: npm run typecheck

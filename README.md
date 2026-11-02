@@ -117,6 +117,14 @@ Runtime container dependencies are installed from the hash-locked `backend/requi
 
 Open `http://localhost:3000`. In development, Next.js proxies `/api` requests to `http://127.0.0.1:8000` by default.
 
+### Security compatibility for frontend tooling
+
+All frontend tooling uses the patched `minimatch` 11.0.4 through a pinned development dependency and npm override. The existing ESLint, React/accessibility/import plugins and API generator still require older module exports. `npm ci` runs `frontend/scripts/secure-tooling.mjs` to preserve their callable CommonJS and default ESM imports. It also changes the import plugin's two removed `makeRe` calls to predicates backed by the patched matcher; it does not restore the old regular-expression engine or alter minimatch's matching implementation.
+
+The adapter verifies the exact versions and SHA-256 hashes of the three published files before writing anything, accepts only its exact prepared result on repeated runs, and fails installation for unknown source changes. Keep npm install scripts enabled. A production-only install that omits these development dependencies does not need the adapter. Do not update the expected versions or hashes without reviewing the upstream changes and repeating qualification.
+
+Run `npm run test:tooling` to exercise the actual ESLint configuration, import restrictions, React render-prop handling, accessibility controls, ESM configuration, OpenAPI header matching/type generation, source-integrity rejection and bounded processing of amplifying glob input. CI also verifies `npm ls --all` and retains the full `npm audit --audit-level=low` gate. Remove the compatibility adapter and its legacy-specific checks when the parent tools support the patched API directly; this is a compatibility migration, not a vulnerability exception.
+
 ## Validation
 
 Run the backend test suite:
@@ -132,6 +140,7 @@ Run the frontend checks:
 cd frontend
 npm run typecheck
 npm run lint
+npm run test:tooling
 npm run check:unused
 npm run test
 npm run build

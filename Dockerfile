@@ -6,6 +6,7 @@
 FROM node:22-trixie-slim@sha256:2117f713a417f3aff682ac8f5bc2ebbdf1beed51f36e67ab1e0fd3866b6d2d8f AS web-deps
 WORKDIR /build/frontend
 COPY frontend/package.json frontend/package-lock.json ./
+COPY frontend/scripts/ ./scripts/
 RUN npm ci
 
 FROM web-deps AS web-build
