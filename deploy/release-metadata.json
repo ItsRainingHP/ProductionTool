@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "application_version": "2.0.4",
+  "application_version": "2.0.5",
   "api_contract_version": "2.0.0",
-  "receipt_schema_version": 2,
+  "receipt_schema_version": 3,
   "license": "MIT",
   "data_handling_model": "transient-processing-external-archive",
   "base_images": {
@@ -25,7 +25,7 @@
     "gid": 999
   },
   "runtime_packages": {
-    "python-3.14-base": "3.14.8_git20261021-r3",
+    "python-3.14-base": "3.14.10_git20261028-r0",
     "sqlite-libs": "3.54.1-r0",
     "curl": "8.23.0-r2",
     "ca-certificates": "20261020-r0",

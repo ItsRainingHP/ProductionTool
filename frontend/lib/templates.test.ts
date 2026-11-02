@@ -9,10 +9,13 @@ const columns: OutputColumn[] = [{
   name: "Author",
   source_fields: ["Author"],
   transform: { kind: "none", delimiter: null },
-  normalize: true,
+  normalize: true, replace_true_with_header: false,
 }];
 
 describe("mapping templates", () => {
+  it.each(["null", "true", "42", '"template"', "[]"])("rejects non-object template files: %s", (text) => {
+    expect(() => importTemplates(text)).toThrow("The template file does not use the supported schema.");
+  });
   beforeEach(() => {
     const values = new Map<string, string>();
     Object.defineProperty(window, "localStorage", {
@@ -82,6 +85,22 @@ describe("mapping templates", () => {
 
   it("preserves spaces while a template is renamed", () => {
     expect(updateTemplate(createTemplate("Original", columns), "Two Words").name).toBe("Two Words");
+  });
+
+  it("preserves mixed column choices in schema 2 and defaults schema 1 to off", () => {
+    const mixed = [columns[0], { ...columns[0], id: "raw", name: "Raw", replace_true_with_header: true }];
+    const exported = exportTemplates([createTemplate("Mixed", mixed)]);
+    expect(JSON.parse(exported).schemaVersion).toBe(2);
+    expect(importTemplates(exported)[0].columns.map((column) => column.replace_true_with_header)).toEqual([false, true]);
+    const legacy = { ...createTemplate("Old", columns), schemaVersion: 1,
+      columns: columns.map((column) => ({ id: column.id, name: column.name, source_fields: column.source_fields,
+        transform: column.transform, normalize: column.normalize })) };
+    expect(importTemplates(JSON.stringify({ schemaVersion: 1, templates: [legacy] }))[0].columns[0].replace_true_with_header).toBe(false);
+    const malformed = JSON.parse(exported);
+    delete malformed.templates[0].columns[0].replace_true_with_header;
+    expect(() => importTemplates(JSON.stringify(malformed))).toThrow(/supported schema/);
+    malformed.templates[0].columns = [{ ...mixed[1], source_fields: ["Begin", "End"], transform: { kind: "shorten_bates" } }];
+    expect(() => importTemplates(JSON.stringify(malformed))).toThrow(/supported schema/);
   });
 
   it.each([

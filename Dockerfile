@@ -16,7 +16,7 @@ RUN npm run build
 FROM cgr.dev/chainguard/wolfi-base@sha256:88a20e2d017bd20cdc0cb3910de603e7bea9512a6c351a8dd3c9df212ab03d73 AS runtime-base
 RUN apk upgrade --no-cache \
     && apk add --no-cache \
-        python-3.14-base=3.14.8_git20261021-r3 \
+        python-3.14-base=3.14.10_git20261028-r0 \
         sqlite-libs=3.54.1-r0 \
         curl=8.23.0-r2 \
         ca-certificates=20261020-r0 \
@@ -35,7 +35,7 @@ RUN python3.14 -m venv /opt/venv \
     && /opt/venv/bin/python -m pip uninstall --yes pip
 
 FROM runtime-base AS runtime
-ARG RELEASE_VERSION=2.0.4
+ARG RELEASE_VERSION=2.0.5
 ARG VCS_REF=unversioned
 ARG BUILD_DATE=unknown
 LABEL org.opencontainers.image.title="Production Tool" \

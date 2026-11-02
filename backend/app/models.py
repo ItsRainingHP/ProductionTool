@@ -86,6 +86,7 @@ class OutputColumn(BaseModel):
     source_fields: list[str] = Field(min_length=1, max_length=100)
     transform: MappingTransform = Field(default_factory=MappingTransform)
     normalize: bool = False
+    replace_true_with_header: bool = False
 
     @field_validator("name")
     @classmethod
@@ -105,6 +106,8 @@ class OutputColumn(BaseModel):
             raise ValueError("The None transform requires exactly one source field")
         if self.transform.kind == "shorten_bates" and len(self.source_fields) != 2:
             raise ValueError("Shorten Bates requires Begin and End fields")
+        if self.transform.kind == "shorten_bates" and self.replace_true_with_header:
+            raise ValueError("TRUE replacement is not available for Bates range columns")
         if self.transform.kind == "delimit" and not self.transform.delimiter:
             raise ValueError("Delimited columns require a delimiter")
         return self
@@ -112,7 +115,6 @@ class OutputColumn(BaseModel):
 
 class MappingConfig(BaseModel):
     columns: list[OutputColumn] = Field(min_length=1, max_length=100)
-    replace_true_with_header: bool = True
 
     @model_validator(mode="after")
     def unique_names_and_assignments(self) -> MappingConfig:
@@ -120,6 +122,62 @@ class MappingConfig(BaseModel):
         if len(names) != len(set(names)):
             raise ValueError("Output column names must be unique")
         return self
+
+
+class MappingRequest(MappingConfig):
+    """Accept old job-wide requests without exposing the legacy flag in saved mappings."""
+
+    replace_true_with_header: bool | None = Field(default=None, exclude=True, json_schema_extra={"deprecated": True})
+
+    @model_validator(mode="after")
+    def unambiguous_replacement(self) -> MappingRequest:
+        if "replace_true_with_header" in self.model_fields_set and (
+            self.replace_true_with_header is None
+            or any("replace_true_with_header" in column.model_fields_set for column in self.columns)
+        ):
+            raise ValueError(
+                "Use per-column TRUE settings without the legacy job-wide setting. "
+                "Reload the application or update the mapping request."
+            )
+        return self
+
+    def to_config(self, platform: Platform) -> MappingConfig:
+        if self.replace_true_with_header is None:
+            return MappingConfig(columns=self.columns)
+        enabled = self.replace_true_with_header and platform == "logikcull"
+        return MappingConfig(
+            columns=[
+                column.model_copy(
+                    update={
+                        "replace_true_with_header": enabled and column.transform.kind != "shorten_bates",
+                    }
+                )
+                for column in self.columns
+            ]
+        )
+
+
+def migrate_legacy_mapping(value: object, platform: str) -> object:
+    """Upgrade stored mappings using the effective pre-2.0.5 platform behavior."""
+    if not isinstance(value, dict) or not isinstance(value.get("columns"), list):
+        return value
+    enabled = value.get("replace_true_with_header", True) and platform == "logikcull"
+    return {
+        "columns": [
+            {
+                **column,
+                "replace_true_with_header": (
+                    column.get("replace_true_with_header", enabled)
+                    if not isinstance(column.get("transform"), dict)
+                    or column["transform"].get("kind") != "shorten_bates"
+                    else False
+                ),
+            }
+            if isinstance(column, dict)
+            else column
+            for column in value["columns"]
+        ]
+    }
 
 
 class MappingBlankReport(BaseModel):
@@ -205,6 +263,15 @@ class JobView(BaseModel):
     review_stats: OutputStats | None = None
     reviewed_issue_codes: list[str] = Field(default_factory=list)
 
+    @model_validator(mode="before")
+    @classmethod
+    def upgrade_mapping(cls, value: object) -> object:
+        if isinstance(value, dict) and isinstance(value.get("mapping"), dict):
+            analysis = value.get("analysis")
+            platform = analysis.get("platform", "unknown") if isinstance(analysis, dict) else "unknown"
+            return {**value, "mapping": migrate_legacy_mapping(value["mapping"], platform)}
+        return value
+
 
 class JobCreated(BaseModel):
     job_id: str
@@ -223,7 +290,7 @@ class Capabilities(BaseModel):
 
 
 class Receipt(BaseModel):
-    schema_version: int = 2
+    schema_version: int = 3
     app_version: str
     build_id: str
     source_revision: str

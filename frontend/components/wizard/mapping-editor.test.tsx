@@ -32,7 +32,7 @@ describe("MappingEditor normalization", () => {
       name: "Author",
       source_fields: ["Author"],
       transform: { kind: "none", delimiter: null },
-      normalize: false,
+      normalize: false, replace_true_with_header: false,
     }];
     render(
       <Providers>
@@ -41,7 +41,7 @@ describe("MappingEditor normalization", () => {
     );
 
     fireEvent.click(screen.getByRole("checkbox", { name: "Normalize names and emails" }));
-    expect(onChange).toHaveBeenCalledWith([{ ...columns[0], normalize: true }]);
+    expect(onChange).toHaveBeenCalledWith([{ ...columns[0], normalize: true, replace_true_with_header: false }]);
     expect(screen.getByText(/source CSV is not changed/i)).toBeInTheDocument();
   });
 
@@ -53,6 +53,29 @@ describe("MappingEditor normalization", () => {
 
   const state = (): OutputColumn[] => JSON.parse(screen.getByTestId("mapping-state").textContent ?? "[]") as OutputColumn[];
 
+  it("places independent TRUE controls after normalization and clears them for Bates ranges", () => {
+    const initial: OutputColumn[] = [
+      { id: "reason", name: "Reason", source_fields: ["First", "Last"], transform: { kind: "delimit", delimiter: "; " }, normalize: false, replace_true_with_header: false },
+      { id: "raw", name: "Raw", source_fields: ["First"], transform: { kind: "none", delimiter: null }, normalize: false, replace_true_with_header: false },
+    ];
+    const { container } = render(<Harness headers={["First", "Last"]} initial={initial} />);
+    const first = container.querySelectorAll(".mapping-column-card")[0] as HTMLElement;
+    const checkboxes = [within(first).getByRole("checkbox", { name: "Normalize names and emails" }),
+      within(first).getByRole("checkbox", { name: "Replace TRUE cells with source headings" })];
+    expect(checkboxes[0].compareDocumentPosition(checkboxes[1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fireEvent.click(checkboxes[1]);
+    expect(state().map((column) => column.replace_true_with_header)).toEqual([true, false]);
+    expect(state()[0].normalize).toBe(false);
+    fireEvent.click(checkboxes[0]);
+    expect(state()[0]).toMatchObject({ normalize: true, replace_true_with_header: true });
+    fireEvent.click(within(first).getByRole("button", { name: "Bates range" }));
+    expect(checkboxes[1].closest('[aria-disabled="true"]')).toBeInTheDocument();
+    expect(checkboxes[1].parentElement?.querySelector('input[type="checkbox"]')).toBeDisabled();
+    fireEvent.click(checkboxes[1]);
+    expect(checkboxes[1]).not.toBeChecked();
+    expect(state()[0].replace_true_with_header).toBe(false);
+  });
+
   it("warns only for affected output columns and refreshes after a mapping change", async () => {
     const fetcher = vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
       const mapping = JSON.parse(init.body as string) as { columns: OutputColumn[] };
@@ -63,8 +86,8 @@ describe("MappingEditor normalization", () => {
     });
     vi.stubGlobal("fetch", fetcher);
     const initial: OutputColumn[] = [
-      { id: "author", name: "Author", source_fields: ["Author"], transform: { kind: "none", delimiter: null }, normalize: false },
-      { id: "range", name: "Range", source_fields: ["Begin Bates", "End Bates"], transform: { kind: "shorten_bates", delimiter: null }, normalize: false },
+      { id: "author", name: "Author", source_fields: ["Author"], transform: { kind: "none", delimiter: null }, normalize: false, replace_true_with_header: false },
+      { id: "range", name: "Range", source_fields: ["Begin Bates", "End Bates"], transform: { kind: "shorten_bates", delimiter: null }, normalize: false, replace_true_with_header: false },
     ];
     const { container } = render(<Harness jobId="job-1" headers={["Author", "Recipient", "Begin Bates", "End Bates"]} initial={initial} />);
     const cards = container.querySelectorAll(".mapping-column-card");
@@ -80,23 +103,23 @@ describe("MappingEditor normalization", () => {
 
   it("refreshes blank counts when only TRUE replacement changes", async () => {
     const fetcher = vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
-      const mapping = JSON.parse(init.body as string) as { replace_true_with_header: boolean };
-      return new Response(JSON.stringify({ blank_cells: [mapping.replace_true_with_header ? 1 : 0], output_rows: 1 }));
+      const mapping = JSON.parse(init.body as string) as { columns: OutputColumn[] };
+      return new Response(JSON.stringify({ blank_cells: [mapping.columns[0].replace_true_with_header ? 1 : 0], output_rows: 1 }));
     });
     vi.stubGlobal("fetch", fetcher);
     const columns: OutputColumn[] = [{ id: "tag", name: "Tag", source_fields: ["Tag:"],
-      transform: { kind: "none", delimiter: null }, normalize: false }];
-    const view = render(<Providers><MappingEditor jobId="job-1" headers={["Tag:"]} columns={columns} onChange={() => undefined} /></Providers>);
+      transform: { kind: "none", delimiter: null }, normalize: false, replace_true_with_header: false }];
+    const view = render(<Providers><MappingEditor jobId="job-1" headers={["Tag:"]} columns={[{ ...columns[0], replace_true_with_header: true }]} onChange={() => undefined} /></Providers>);
     expect(await screen.findByText("1 blank output cell")).toBeVisible();
-    view.rerender(<Providers><MappingEditor jobId="job-1" headers={["Tag:"]} columns={columns} replaceTrueWithHeader={false} onChange={() => undefined} /></Providers>);
+    view.rerender(<Providers><MappingEditor jobId="job-1" headers={["Tag:"]} columns={columns} onChange={() => undefined} /></Providers>);
     expect(screen.queryByText("1 blank output cell")).not.toBeInTheDocument();
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
-    expect(JSON.parse(fetcher.mock.calls[1][1].body).replace_true_with_header).toBe(false);
+    expect(JSON.parse(fetcher.mock.calls[1][1].body).columns[0].replace_true_with_header).toBe(false);
   });
 
   it("finds and assigns fields, then reorders and removes them", () => {
     const initial: OutputColumn[] = [{ id: "output", name: "People", source_fields: ["First"],
-      transform: { kind: "none", delimiter: null }, normalize: false }];
+      transform: { kind: "none", delimiter: null }, normalize: false, replace_true_with_header: false }];
     const { container } = render(<Harness headers={["First", "Last", "Bates"]} initial={initial} />);
     fireEvent.change(screen.getByLabelText("Search available fields"), { target: { value: "last" } });
     expect(container.querySelectorAll(".source-chip")).toHaveLength(1);
@@ -128,7 +151,7 @@ describe("MappingEditor normalization", () => {
 
   it("supports drag assignment, transform choices, separators and normalization", () => {
     const initial: OutputColumn[] = [{ id: "range", name: "Range", source_fields: ["Begin Bates"],
-      transform: { kind: "none", delimiter: null }, normalize: false }];
+      transform: { kind: "none", delimiter: null }, normalize: false, replace_true_with_header: false }];
     const { container } = render(<Harness headers={["Begin Bates", "End Bates"]} initial={initial} />);
     const endChip = Array.from(container.querySelectorAll(".source-chip")).find((button) => button.textContent?.includes("End Bates"))!;
     fireEvent.mouseDown(endChip);
@@ -146,7 +169,7 @@ describe("MappingEditor normalization", () => {
     expect(state()[0].transform).toEqual({ kind: "fill", delimiter: null });
     fireEvent.click(choices.getByRole("button", { name: "Bates range" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Normalize names and emails" }));
-    expect(state()[0]).toMatchObject({ normalize: true, transform: { kind: "shorten_bates" } });
+    expect(state()[0]).toMatchObject({ normalize: true, replace_true_with_header: false, transform: { kind: "shorten_bates" } });
     fireEvent.click(screen.getByRole("button", { name: "Move Begin Bates later" }));
     expect(state()[0].source_fields).toEqual(["End Bates", "Begin Bates"]);
     fireEvent.click(endChip);

@@ -8,9 +8,8 @@ const job = {
 } as Job;
 
 const draft = {
-  schemaVersion: 1 as const, jobId: job.job_id, configurationRevision: job.configuration_revision,
+  schemaVersion: 2 as const, jobId: job.job_id, configurationRevision: job.configuration_revision,
   expiresAt: job.expires_at, acknowledged: ["uneven_row_width"], mappingColumns: [],
-  replaceTrueWithHeader: false,
   pleadingSettings: { delimiter: "semicolon" as const, include_and: false },
 };
 
@@ -20,7 +19,7 @@ afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 it("restores only a matching live job configuration in this tab", () => {
   const populated = { ...draft, mappingColumns: [{
     id: "author", name: "Author", source_fields: ["From"],
-    transform: { kind: "none" as const, delimiter: null }, normalize: false,
+    transform: { kind: "none" as const, delimiter: null }, normalize: false, replace_true_with_header: false,
   }] };
   expect(saveAdvancedDraft(populated)).toBe(true);
   expect(loadAdvancedDraft(job)).toEqual({ status: "restored", draft: populated });
@@ -31,12 +30,31 @@ it("restores only a matching live job configuration in this tab", () => {
   expect(loadAdvancedDraft(job)).toEqual({ status: "none" });
 });
 
-it("defaults legacy drafts to enabled and rejects an invalid TRUE replacement setting", () => {
-  const legacy = { ...draft, replaceTrueWithHeader: undefined };
-  expect(saveAdvancedDraft(legacy)).toBe(true);
-  expect(loadAdvancedDraft(job).draft?.replaceTrueWithHeader).toBe(true);
+it.each(["logikcull", "everlaw", "unknown"] as const)("migrates legacy drafts using the effective %s behavior", (platform) => {
+  const legacy = { ...draft, schemaVersion: 1, mappingColumns: [
+    { id: "flag", name: "Flag", source_fields: ["Flag"], transform: { kind: "none" }, normalize: false },
+    { id: "range", name: "Range", source_fields: ["Begin", "End"], transform: { kind: "shorten_bates" }, normalize: false },
+  ] };
+  window.sessionStorage.setItem("production-tool.advanced-draft.v1.job-1", JSON.stringify(legacy));
+  const restored = loadAdvancedDraft({ ...job, analysis: { platform } } as Job);
+  expect(restored.draft?.schemaVersion).toBe(2);
+  expect(restored.draft?.mappingColumns.map((column) => column.replace_true_with_header)).toEqual([platform === "logikcull", false]);
+  expect(saveAdvancedDraft(restored.draft!)).toBe(true);
+  expect(window.sessionStorage.getItem("production-tool.advanced-draft.v1.job-1")).toBeNull();
+});
+
+it("preserves a disabled legacy setting and rejects invalid settings", () => {
+  window.sessionStorage.setItem("production-tool.advanced-draft.v1.job-1", JSON.stringify({
+    ...draft, schemaVersion: 1, replaceTrueWithHeader: false,
+    mappingColumns: [{ id: "flag", name: "Flag", source_fields: ["Flag"], transform: { kind: "none" } }],
+  }));
+  expect(loadAdvancedDraft({ ...job, analysis: { platform: "logikcull" } } as Job).draft?.mappingColumns[0].replace_true_with_header).toBe(false);
   window.sessionStorage.setItem("production-tool.advanced-draft.v1.job-1", JSON.stringify({
     ...draft, replaceTrueWithHeader: "false",
+  }));
+  expect(loadAdvancedDraft(job)).toEqual({ status: "stale" });
+  window.sessionStorage.setItem("production-tool.advanced-draft.v2.job-1", JSON.stringify({ ...draft,
+    mappingColumns: [{ id: "flag", name: "Flag", source_fields: ["Flag"], transform: { kind: "none" }, replace_true_with_header: "false" }],
   }));
   expect(loadAdvancedDraft(job)).toEqual({ status: "stale" });
 });

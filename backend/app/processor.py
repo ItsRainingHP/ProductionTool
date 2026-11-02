@@ -836,12 +836,11 @@ def _true_header_value(field: str, value: str) -> str:
 def iter_privilege_output_rows(
     path: Path, mapping: MappingConfig, analysis: Analysis | None = None
 ) -> Iterator[list[str]]:
-    replace_true = mapping.replace_true_with_header and analysis is not None and analysis.platform == "logikcull"
     for row in _iter_dict_rows(path):
         result: list[str] = []
         for column in mapping.columns:
             values = [row.get(field, "") for field in column.source_fields]
-            if replace_true and column.transform.kind != "shorten_bates":
+            if column.replace_true_with_header and column.transform.kind != "shorten_bates":
                 values = [
                     _true_header_value(field, value)
                     for field, value in zip(column.source_fields, values, strict=True)

@@ -46,21 +46,15 @@ for (const scenario of cases) {
       await page.waitForLoadState("networkidle");
 
       if (scenario.workflow === "privilege_log") {
-        const template = { schemaVersion: 1, templates: [{
-          schemaVersion: 1, id: "synthetic-output-stress", name: "Synthetic output stress mapping",
-          createdAt: "2026-10-29T00:00:00Z", updatedAt: "2026-10-29T00:00:00Z", columns: scenario.columns,
+        const template = { schemaVersion: 2, templates: [{
+          schemaVersion: 2, id: "synthetic-output-stress", name: "Synthetic output stress mapping",
+          createdAt: "2026-10-29T00:00:00Z", updatedAt: "2026-10-29T00:00:00Z", columns: scenario.columns?.map((column) => ({ ...column, replace_true_with_header: column.transform.kind !== "shorten_bates" && Boolean(scenario.replaceTrueWithHeader) })),
         }] };
         await page.getByLabel("Import mapping templates").setInputFiles({
           name: "synthetic-output-stress-mapping.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(template)),
         });
         await page.getByRole("button", { name: "Apply", exact: true }).click();
-        const checkbox = page.getByRole("checkbox", { name: "Replace cells containing TRUE with column headings" });
-        if (scenario.platform === "logikcull") {
-          await expect(checkbox).toBeChecked();
-          if (!scenario.replaceTrueWithHeader) await checkbox.uncheck();
-        } else {
-          await expect(checkbox).toHaveCount(0);
-        }
+
       }
 
       await page.getByRole("button", { name: "Review output" }).click();
@@ -100,8 +94,8 @@ for (const scenario of cases) {
       const receipt = await receiptResponse.json();
       expect(receipt.output_stats.output_rows).toBe(Array.isArray(scenario.expectedRows) ? scenario.expectedRows.length : scenario.expectedRows);
       expect(receipt.output_stats.formula_escapes).toBe(scenario.expectedEscapes);
-      if (scenario.platform === "logikcull" && scenario.workflow === "privilege_log") {
-        expect(receipt.mapping.replace_true_with_header).toBe(scenario.replaceTrueWithHeader);
+      if (scenario.workflow === "privilege_log") {
+        expect(receipt.mapping.columns.every((column: OutputColumn) => column.replace_true_with_header === (column.transform.kind !== "shorten_bates" && Boolean(scenario.replaceTrueWithHeader)))).toBe(true);
       }
       await writeFile(path.join(evidenceRoot, `${scenario.id}-receipt.json`), JSON.stringify(receipt, null, 2) + "\n");
       await writeFile(path.join(evidenceRoot, `${scenario.id}-preview.json`), JSON.stringify(preview, null, 2) + "\n");

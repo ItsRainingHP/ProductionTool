@@ -81,7 +81,7 @@ function ColumnDropZone({ active, draggedField, onDropField, children }: { activ
   );
 }
 
-export function MappingEditor({ jobId, headers, columns, replaceTrueWithHeader = true, onChange }: { jobId?: string; headers: string[]; columns: OutputColumn[]; replaceTrueWithHeader?: boolean; onChange: (columns: OutputColumn[]) => void }) {
+export function MappingEditor({ jobId, headers, columns, onChange }: { jobId?: string; headers: string[]; columns: OutputColumn[]; onChange: (columns: OutputColumn[]) => void }) {
   const [selectedField, setSelectedField] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [draggedField, setDraggedField] = useState<string | null>(null);
@@ -101,7 +101,7 @@ export function MappingEditor({ jobId, headers, columns, replaceTrueWithHeader =
       && column.source_fields.every((field) => headers.includes(field)))
     .map((column, index) => ({ ...column, name: `Output ${index + 1}` }));
   const blankCheckSignature = inspectedColumns.length
-    ? JSON.stringify({ columns: inspectedColumns, replace_true_with_header: replaceTrueWithHeader }) : "";
+    ? JSON.stringify({ columns: inspectedColumns }) : "";
   const currentBlankCheck = blankCheck?.signature === blankCheckSignature ? blankCheck.report : null;
   const blankCounts = new Map(inspectedColumns.map((column, index) => [column.id, currentBlankCheck?.blank_cells[index] ?? 0]));
 
@@ -136,7 +136,8 @@ export function MappingEditor({ jobId, headers, columns, replaceTrueWithHeader =
     onChange(columns.map((column) => {
       if (column.id !== columnId) return column;
       const transform = validTransform(column.transform, fields.length) ? column.transform : recommendedTransform(fields);
-      return { ...column, source_fields: fields, transform };
+      return { ...column, source_fields: fields, transform,
+        replace_true_with_header: transform.kind === "shorten_bates" ? false : column.replace_true_with_header };
     }));
   };
 
@@ -172,6 +173,7 @@ export function MappingEditor({ jobId, headers, columns, replaceTrueWithHeader =
         source_fields: [],
         transform: { kind: "none", delimiter: null },
         normalize: false,
+        replace_true_with_header: false,
       },
     ]);
   };
@@ -186,7 +188,8 @@ export function MappingEditor({ jobId, headers, columns, replaceTrueWithHeader =
 
   const chooseTransform = (column: OutputColumn, kind: TransformKind) => {
     const delimiter = kind === "delimit" ? (column.transform.delimiter ?? "; ") : null;
-    updateColumn(column.id, { transform: { kind, delimiter } });
+    updateColumn(column.id, { transform: { kind, delimiter },
+      replace_true_with_header: kind === "shorten_bates" ? false : column.replace_true_with_header });
   };
 
   return (
@@ -350,6 +353,20 @@ export function MappingEditor({ jobId, headers, columns, replaceTrueWithHeader =
                     />
                     <Text variant="body-default-xs" onBackground="neutral-weak">
                       Capitalizes name text and removes quotes or angle brackets surrounding email addresses. The source CSV is not changed.
+                    </Text>
+                  </Column>
+                  <Column gap="4" padding="12" radius="m" background="neutral-alpha-weak"
+                    aria-disabled={column.transform.kind === "shorten_bates" || undefined}>
+                    <Checkbox
+                      label="Replace TRUE cells with source headings"
+                      isChecked={column.replace_true_with_header}
+                      disabled={column.transform.kind === "shorten_bates"}
+                      onToggle={() => updateColumn(column.id, { replace_true_with_header: !column.replace_true_with_header })}
+                    />
+                    <Text variant="body-default-xs" onBackground="neutral-weak">
+                      {column.transform.kind === "shorten_bates"
+                        ? "TRUE replacement is not available for Bates range columns."
+                        : "Replaces a cell only when its entire value is TRUE, ignoring case and surrounding whitespace. Applies to all source fields mapped to this output column, using each source heading without a leading Tag:, before Direct, Join, or Fill. Text containing TRUE is preserved."}
                     </Text>
                   </Column>
                 </Column>

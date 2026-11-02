@@ -129,7 +129,7 @@ describe("wizard recovery", () => {
   it("blocks duplicate output column names before sending a mapping", async () => {
     navigation.segments = ["job-1", "advanced"];
     const column = { id: "one", name: "Author", source_fields: ["Begin Bates"],
-      transform: { kind: "none", delimiter: null }, normalize: false };
+      transform: { kind: "none", delimiter: null }, normalize: false, replace_true_with_header: false };
     vi.mocked(getJob).mockResolvedValue({ ...reviewed, status: "needs_configuration", workflow: "privilege_log",
       mapping: { columns: [column, { ...column, id: "two", name: "author" }] } } as Job);
     render(<Providers><Wizard /></Providers>);
@@ -270,7 +270,7 @@ describe("wizard recovery", () => {
   it("preserves unsaved privilege mapping changes until review and submits the mapping", async () => {
     navigation.segments = ["job-1", "advanced"];
     const column = { id: "author", name: "Author", source_fields: ["Begin Bates"],
-      transform: { kind: "none" as const, delimiter: null }, normalize: false };
+      transform: { kind: "none" as const, delimiter: null }, normalize: false, replace_true_with_header: false };
     const configured = { ...reviewed, status: "needs_configuration", workflow: "privilege_log", analysis: { ...analysis, issues: [] },
       mapping: { columns: [column] } } as Job;
     vi.mocked(getJob).mockResolvedValueOnce(configured).mockResolvedValueOnce({ ...configured, status: "ready_for_review" });
@@ -282,45 +282,45 @@ describe("wizard recovery", () => {
     expect(screen.getByText(/Unsaved changes\. They are saved/)).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Review output" }));
     expect(await screen.findByRole("heading", { name: "Review your output" })).toBeVisible();
-    expect(setMapping).toHaveBeenCalledWith("job-1", { columns: [expect.objectContaining({ name: "Reviewer" })], replace_true_with_header: true });
+    expect(setMapping).toHaveBeenCalledWith("job-1", { columns: [expect.objectContaining({ name: "Reviewer" })] });
   });
 
-  it("defaults TRUE replacement on, restores a disabled draft, discards it, and submits false", async () => {
+  it("defaults TRUE replacement off, restores an enabled column draft, discards it, and submits the column choice", async () => {
     navigation.segments = ["job-1", "advanced"];
     const column = { id: "reason", name: "Reason", source_fields: ["Tag: RFP 01"],
-      transform: { kind: "none" as const, delimiter: null }, normalize: false };
+      transform: { kind: "none" as const, delimiter: null }, normalize: false, replace_true_with_header: false };
     const configured = { ...reviewed, status: "needs_configuration", workflow: "privilege_log",
       analysis: { ...analysis, platform: "logikcull", issues: [] }, mapping: { columns: [column] } } as Job;
     vi.mocked(getJob).mockResolvedValue(configured);
     let view = render(<Providers><Wizard /></Providers>);
-    const label = "Replace cells containing TRUE with column headings";
-    expect(await screen.findByRole("checkbox", { name: label })).toBeChecked();
+    const label = "Replace TRUE cells with source headings";
+    expect(await screen.findByRole("checkbox", { name: label })).not.toBeChecked();
     fireEvent.click(screen.getByRole("checkbox", { name: label }));
-    await waitFor(() => expect(JSON.parse(window.sessionStorage.getItem("production-tool.advanced-draft.v1.job-1") ?? "{}").replaceTrueWithHeader).toBe(false));
+    await waitFor(() => expect(JSON.parse(window.sessionStorage.getItem("production-tool.advanced-draft.v2.job-1") ?? "{}").mappingColumns?.[0].replace_true_with_header).toBe(true));
     view.unmount();
     view = render(<Providers><Wizard /></Providers>);
-    expect(await screen.findByRole("checkbox", { name: label })).not.toBeChecked();
+    expect(await screen.findByRole("checkbox", { name: label })).toBeChecked();
     fireEvent.click(screen.getByRole("button", { name: "Discard draft" }));
-    expect(screen.getByRole("checkbox", { name: label })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: label })).not.toBeChecked();
     fireEvent.click(screen.getByRole("checkbox", { name: label }));
-    vi.mocked(setMapping).mockResolvedValue({ ...configured, mapping: { columns: [column], replace_true_with_header: false } });
+    vi.mocked(setMapping).mockResolvedValue({ ...configured, mapping: { columns: [{ ...column, replace_true_with_header: true }] } });
     vi.mocked(readyForReview).mockRejectedValue(new Error("Review unavailable"));
     fireEvent.click(screen.getByRole("button", { name: "Review output" }));
-    await waitFor(() => expect(setMapping).toHaveBeenCalledWith("job-1", { columns: [column], replace_true_with_header: false }));
+    await waitFor(() => expect(setMapping).toHaveBeenCalledWith("job-1", { columns: [{ ...column, replace_true_with_header: true }] }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Review unavailable");
     view.unmount();
-    vi.mocked(getJob).mockResolvedValue({ ...configured, mapping: { columns: [column], replace_true_with_header: false } });
+    vi.mocked(getJob).mockResolvedValue({ ...configured, mapping: { columns: [{ ...column, replace_true_with_header: true }] } });
     render(<Providers><Wizard /></Providers>);
-    expect(await screen.findByRole("checkbox", { name: label })).not.toBeChecked();
+    expect(await screen.findByRole("checkbox", { name: label })).toBeChecked();
   });
 
-  it.each(["everlaw", "unknown"] as const)("hides TRUE replacement for %s sources", async (platform) => {
+  it.each(["everlaw", "unknown"] as const)("offers column TRUE replacement for %s sources", async (platform) => {
     navigation.segments = ["job-1", "advanced"];
     vi.mocked(getJob).mockResolvedValue({ ...reviewed, status: "needs_configuration", workflow: "privilege_log",
       analysis: { ...analysis, platform, issues: [] } });
     render(<Providers><Wizard /></Providers>);
     expect(await screen.findByRole("heading", { name: "Build privilege output" })).toBeVisible();
-    expect(screen.queryByRole("checkbox", { name: "Replace cells containing TRUE with column headings" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("checkbox", { name: "Replace TRUE cells with source headings" }).length).toBeGreaterThan(0);
   });
 
   it("finalizes a reviewed CSV, exposes receipts, and clears the workspace on finish", async () => {
@@ -359,12 +359,12 @@ describe("wizard recovery", () => {
 
   it("recovers from an expired route and redirects an inaccessible future step", async () => {
     navigation.segments = ["job-1", "review"];
-    window.sessionStorage.setItem("production-tool.advanced-draft.v1.job-1", "expired draft");
+    window.sessionStorage.setItem("production-tool.advanced-draft.v2.job-1", "expired draft");
     vi.mocked(getJob).mockRejectedValueOnce(new Error("Job expired"));
     const expired = render(<Providers><Wizard /></Providers>);
     expect(await screen.findByRole("alert")).toHaveTextContent("expired. Start a new upload");
     expect(navigation.replace).toHaveBeenCalledWith("/wizard");
-    expect(window.sessionStorage.getItem("production-tool.advanced-draft.v1.job-1")).toBeNull();
+    expect(window.sessionStorage.getItem("production-tool.advanced-draft.v2.job-1")).toBeNull();
     expired.unmount();
 
     vi.clearAllMocks();
@@ -465,7 +465,7 @@ describe("wizard recovery", () => {
     vi.mocked(getJob).mockResolvedValue(configured);
     const view = render(<Providers><Wizard /></Providers>);
     fireEvent.click(await screen.findByRole("button", { name: "Semicolon" }));
-    await waitFor(() => expect(window.sessionStorage.getItem("production-tool.advanced-draft.v1.job-1"))
+    await waitFor(() => expect(window.sessionStorage.getItem("production-tool.advanced-draft.v2.job-1"))
       .toContain('"delimiter":"semicolon"'));
 
     navigation.segments = ["job-1", "data"];
@@ -485,18 +485,18 @@ describe("wizard recovery", () => {
     vi.mocked(getJob).mockResolvedValue({ ...reviewed, status: "needs_configuration", reviewed_issue_codes: [] });
     const view = render(<Providers><Wizard /></Providers>);
     fireEvent.click(await screen.findByRole("button", { name: "Pipe" }));
-    await waitFor(() => expect(window.sessionStorage.getItem("production-tool.advanced-draft.v1.job-1"))
+    await waitFor(() => expect(window.sessionStorage.getItem("production-tool.advanced-draft.v2.job-1"))
       .toContain('"delimiter":"pipe"'));
     fireEvent.click(screen.getByRole("button", { name: "Previous" }));
     expect(navigation.push).toHaveBeenCalledWith("/wizard/job-1/data");
-    expect(window.sessionStorage.getItem("production-tool.advanced-draft.v1.job-1")).toContain('"delimiter":"pipe"');
+    expect(window.sessionStorage.getItem("production-tool.advanced-draft.v2.job-1")).toContain('"delimiter":"pipe"');
     navigation.segments = ["job-1", "data"];
     view.rerender(<Providers><Wizard /></Providers>);
     navigation.segments = ["job-1", "advanced"];
     view.rerender(<Providers><Wizard /></Providers>);
     await waitFor(() => expect(screen.getByRole("button", { name: "Pipe" })).toHaveAttribute("aria-pressed", "true"));
     fireEvent.click(screen.getByRole("button", { name: "Discard draft" }));
-    expect(window.sessionStorage.getItem("production-tool.advanced-draft.v1.job-1")).toBeNull();
+    expect(window.sessionStorage.getItem("production-tool.advanced-draft.v2.job-1")).toBeNull();
   });
 
   it("warns before leaving Advanced when tab storage rejects the draft", async () => {
@@ -552,11 +552,11 @@ describe("wizard recovery", () => {
     vi.mocked(readyForReview).mockRejectedValue(new Error("Review unavailable"));
     render(<Providers><Wizard /></Providers>);
     fireEvent.click(await screen.findByRole("button", { name: "Pipe" }));
-    await waitFor(() => expect(window.sessionStorage.getItem("production-tool.advanced-draft.v1.job-1"))
+    await waitFor(() => expect(window.sessionStorage.getItem("production-tool.advanced-draft.v2.job-1"))
       .toContain('"delimiter":"pipe"'));
     fireEvent.click(screen.getByRole("button", { name: "Review output" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Review unavailable");
-    expect(window.sessionStorage.getItem("production-tool.advanced-draft.v1.job-1")).toBeNull();
+    expect(window.sessionStorage.getItem("production-tool.advanced-draft.v2.job-1")).toBeNull();
     expect(screen.getByRole("button", { name: "Pipe" })).toHaveAttribute("aria-pressed", "true");
   });
 
@@ -637,14 +637,14 @@ describe("wizard recovery", () => {
 
   it("applies a template and identifies source fields absent from the CSV", async () => {
     navigation.segments = ["job-1", "advanced"];
-    const missing = { schemaVersion: 1, id: "template-1", name: "Old fields",
+    const missing = { schemaVersion: 2, id: "template-1", name: "Old fields",
       createdAt: "2026-10-01T00:00:00Z", updatedAt: "2026-10-01T00:00:00Z",
       columns: [{ id: "old", name: "Old", source_fields: ["Absent"],
-        transform: { kind: "none", delimiter: null }, normalize: false }],
+        transform: { kind: "none", delimiter: null }, normalize: false, replace_true_with_header: false }],
     };
     vi.mocked(window.localStorage.getItem).mockReturnValue(JSON.stringify([missing]));
     const column = { id: "current", name: "Current", source_fields: ["Begin Bates"],
-      transform: { kind: "none" as const, delimiter: null }, normalize: false };
+      transform: { kind: "none" as const, delimiter: null }, normalize: false, replace_true_with_header: false };
     vi.mocked(getJob).mockResolvedValue({ ...reviewed, workflow: "privilege_log", status: "needs_configuration",
       analysis: { ...analysis, issues: [] }, mapping: { columns: [column] } } as Job);
     render(<Providers><Wizard /></Providers>);
@@ -655,9 +655,9 @@ describe("wizard recovery", () => {
   });
 
   it.each([
-    { columns: [{ id: "empty", name: "Empty", source_fields: [], transform: { kind: "none", delimiter: null }, normalize: false }] },
-    { columns: [{ id: "duplicate", name: "Duplicate", source_fields: ["Begin Bates", "Begin Bates"], transform: { kind: "fill", delimiter: null }, normalize: false }] },
-    { columns: [{ id: "separator", name: "Separator", source_fields: ["Begin Bates", "End Bates"], transform: { kind: "delimit", delimiter: null }, normalize: false }] },
+    { columns: [{ id: "empty", name: "Empty", source_fields: [], transform: { kind: "none", delimiter: null }, normalize: false, replace_true_with_header: false }] },
+    { columns: [{ id: "duplicate", name: "Duplicate", source_fields: ["Begin Bates", "Begin Bates"], transform: { kind: "fill", delimiter: null }, normalize: false, replace_true_with_header: false }] },
+    { columns: [{ id: "separator", name: "Separator", source_fields: ["Begin Bates", "End Bates"], transform: { kind: "delimit", delimiter: null }, normalize: false, replace_true_with_header: false }] },
   ])("blocks an incomplete privilege mapping before review", async ({ columns }) => {
     navigation.segments = ["job-1", "advanced"];
     vi.mocked(getJob).mockResolvedValue({ ...reviewed, workflow: "privilege_log", status: "needs_configuration",

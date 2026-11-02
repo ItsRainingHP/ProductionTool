@@ -2,7 +2,8 @@
 
 import type { MappingTemplate, OutputColumn } from "./types";
 
-const STORAGE_KEY = "production-tool.mapping-templates.v1";
+const STORAGE_KEY = "production-tool.mapping-templates.v2";
+const LEGACY_STORAGE_KEY = "production-tool.mapping-templates.v1";
 const MAX_IMPORT_BYTES = 256 * 1024;
 
 type ImportedOutputColumn = Omit<OutputColumn, "transform"> & {
@@ -11,8 +12,8 @@ type ImportedOutputColumn = Omit<OutputColumn, "transform"> & {
 
 function normalizeTemplate(value: unknown): MappingTemplate | null {
   if (!value || typeof value !== "object") return null;
-  const item = value as Partial<MappingTemplate>;
-  const valid = item.schemaVersion === 1
+  const item = value as Partial<Omit<MappingTemplate, "schemaVersion">> & { schemaVersion?: number };
+  const valid = (item.schemaVersion === 1 || item.schemaVersion === 2)
     && typeof item.id === "string"
     && typeof item.name === "string"
     && item.name.trim().length > 0
@@ -37,20 +38,24 @@ function normalizeTemplate(value: unknown): MappingTemplate | null {
         && candidate.source_fields.every((field) => typeof field === "string" && field.length > 0)
         && new Set(candidate.source_fields).size === candidate.source_fields.length
         && typeof candidate.normalize === "boolean"
+        && (item.schemaVersion === 1 || typeof candidate.replace_true_with_header === "boolean")
         && !!candidate.transform
         && ["none", "shorten_bates", "delimit", "fill", "concatenate"].includes(candidate.transform.kind)
         && (candidate.transform.delimiter == null || ["; ", ", ", " | ", "\n"].includes(candidate.transform.delimiter))
         && (candidate.transform.kind !== "none" || candidate.source_fields.length === 1)
         && (candidate.transform.kind !== "shorten_bates" || candidate.source_fields.length === 2)
+        && (candidate.transform.kind !== "shorten_bates" || item.schemaVersion === 1 || !candidate.replace_true_with_header)
         && (candidate.transform.kind !== "delimit" || Boolean(candidate.transform.delimiter));
     });
   if (!valid) return null;
   return {
     ...(item as MappingTemplate),
+    schemaVersion: 2,
     columns: item.columns!.map((column) => {
       const imported = column as ImportedOutputColumn;
       return {
         ...imported,
+        replace_true_with_header: item.schemaVersion === 1 ? false : imported.replace_true_with_header,
         source_fields: [...imported.source_fields],
         transform: {
           ...imported.transform,
@@ -64,7 +69,8 @@ function normalizeTemplate(value: unknown): MappingTemplate | null {
 export function loadTemplates(): MappingTemplate[] {
   if (typeof window === "undefined") return [];
   try {
-    const value: unknown = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "[]");
+    const value: unknown = JSON.parse(window.localStorage.getItem(STORAGE_KEY)
+      ?? window.localStorage.getItem(LEGACY_STORAGE_KEY) ?? "[]");
     return Array.isArray(value) ? value.map(normalizeTemplate).filter((item): item is MappingTemplate => item !== null) : [];
   } catch {
     return [];
@@ -82,7 +88,7 @@ export function saveTemplates(templates: MappingTemplate[]): void {
 export function createTemplate(name: string, columns: OutputColumn[]): MappingTemplate {
   const now = new Date().toISOString();
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: crypto.randomUUID(),
     name: name.trim(),
     createdAt: now,
@@ -105,16 +111,19 @@ export function updateTemplate(template: MappingTemplate, name: string, columns?
 }
 
 export function exportTemplates(templates: MappingTemplate[]): string {
-  return `${JSON.stringify({ schemaVersion: 1, templates }, null, 2)}\n`;
+  return `${JSON.stringify({ schemaVersion: 2, templates }, null, 2)}\n`;
 }
 
 export function importTemplates(text: string): MappingTemplate[] {
   if (new TextEncoder().encode(text).length > MAX_IMPORT_BYTES) throw new Error("Template files must be 256 KiB or smaller.");
   let value: unknown;
   try { value = JSON.parse(text); } catch { throw new Error("The template file is not valid JSON."); }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("The template file does not use the supported schema.");
+  }
   const payload = value as { schemaVersion?: unknown; templates?: unknown };
   const templates = Array.isArray(payload.templates) ? payload.templates.map(normalizeTemplate) : [];
-  if (payload.schemaVersion !== 1 || !Array.isArray(payload.templates) || templates.some((template) => template === null)) {
+  if (![1, 2].includes(payload.schemaVersion as number) || !Array.isArray(payload.templates) || templates.some((template) => template === null)) {
     throw new Error("The template file does not use the supported schema.");
   }
   return templates.map((template) => ({ ...template!, id: crypto.randomUUID(), updatedAt: new Date().toISOString() }));

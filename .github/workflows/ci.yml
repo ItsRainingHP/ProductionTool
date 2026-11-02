@@ -129,6 +129,11 @@ jobs:
           test "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$IMAGE_TAG")" = "$GITHUB_SHA"
           test "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.licenses"}}' "$IMAGE_TAG")" = "MIT"
           docker image inspect "$IMAGE_TAG" > production-tool-image-inspect.json
+      - name: Qualify retained-volume upgrade from 2.0.4
+        run: >-
+          python backend/scripts/validate_true_upgrade.py
+          --candidate-image "$IMAGE_TAG"
+          --report true-upgrade-report.json
       - name: Create container SBOM
         uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
         with:
@@ -261,6 +266,8 @@ jobs:
             production-tool-runtime-inspect.json
             production-tool.spdx.json
             third-party-licenses.tsv
+            true-upgrade-report.json
+            artifacts/per-column-true/browser/
           if-no-files-found: warn
           retention-days: 90
       - name: Stop production container

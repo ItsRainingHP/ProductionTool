@@ -273553,10 +273553,10 @@
         "outcome": "complete",
         "outputRows": 3,
         "outputCells": 18,
-        "outputSizeBytes": 352,
+        "outputSizeBytes": 300,
         "skippedRows": 0,
         "formulaEscapes": 0,
-        "outputSha256": "990835b4b1445b7c394fb99ee0e6b95ebae44a482c0bec18eaa724beff086295"
+        "outputSha256": "9982ba3809560fae27e8625902df973acade7131e2ce725bea6b40d33dc58f36"
       }
     },
     {
@@ -273710,10 +273710,10 @@
         "outcome": "complete",
         "outputRows": 12,
         "outputCells": 72,
-        "outputSizeBytes": 856,
+        "outputSizeBytes": 797,
         "skippedRows": 0,
-        "formulaEscapes": 3,
-        "outputSha256": "a2133d5ec832b87c7f4efb52dae3895e63ac506090fb745698618fa87e9b524d"
+        "formulaEscapes": 1,
+        "outputSha256": "746ba3e26404ed9a51d9da05569992500ed69626653707c64a3826a4609db05f"
       }
     },
     {
@@ -273909,8 +273909,8 @@
     "privilegeOutputs": 43,
     "outputRows": 132948,
     "outputCells": 526876,
-    "outputSizeBytes": 11716295,
+    "outputSizeBytes": 11716184,
     "skippedRows": 238,
-    "formulaEscapes": 6
+    "formulaEscapes": 4
   }
 }

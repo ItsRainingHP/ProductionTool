@@ -8,7 +8,7 @@ import { TemplateManager } from "./template-manager";
 
 const column: OutputColumn = {
   id: "author", name: "Author", source_fields: ["Author"],
-  transform: { kind: "none", delimiter: null }, normalize: false,
+  transform: { kind: "none", delimiter: null }, normalize: false, replace_true_with_header: false,
 };
 const onApply = vi.fn();
 const onError = vi.fn();
@@ -35,17 +35,17 @@ describe("mapping template actions", () => {
     const name = screen.getByRole("textbox", { name: "Template name" });
     fireEvent.change(name, { target: { value: " Reviewers " } });
     fireEvent.click(screen.getByRole("button", { name: "Save current mapping" }));
-    expect(window.localStorage.getItem("production-tool.mapping-templates.v1")).toContain("Reviewers");
+    expect(window.localStorage.getItem("production-tool.mapping-templates.v2")).toContain("Reviewers");
     expect(screen.getAllByRole("textbox", { name: "Template name" })[0]).toHaveValue("");
     const templateInput = screen.getAllByRole("textbox", { name: "Template name" })[1];
     fireEvent.change(templateInput, { target: { value: "Review team" } });
     fireEvent.blur(templateInput);
-    expect(window.localStorage.getItem("production-tool.mapping-templates.v1")).toContain("Review team");
+    expect(window.localStorage.getItem("production-tool.mapping-templates.v2")).toContain("Review team");
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
     expect(onApply).toHaveBeenCalledWith([expect.objectContaining({ name: "Author" })], []);
     fireEvent.click(screen.getByRole("button", { name: "Update mapping" }));
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
-    expect(window.localStorage.getItem("production-tool.mapping-templates.v1")).toBe("[]");
+    expect(window.localStorage.getItem("production-tool.mapping-templates.v2")).toBe("[]");
   });
 
   it("imports valid JSON, exports it, and reports a bad import", async () => {

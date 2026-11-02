@@ -45,7 +45,7 @@ export type Capabilities = {
 };
 
 export type MappingTemplate = {
-  schemaVersion: 1;
+  schemaVersion: 2;
   id: string;
   name: string;
   createdAt: string;
