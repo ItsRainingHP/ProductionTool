@@ -60,7 +60,8 @@ for (const scenario of cases) {
       await page.getByRole("button", { name: "Review output" }).click();
       await expect(page.getByRole("heading", { name: "Review your output" })).toBeVisible();
       await page.getByLabel("Output filename").fill(scenario.id);
-      const previewResponse = await request.get(`/api/v1/jobs/${jobId}/preview?limit=5`);
+      // Retry only connection resets on this idempotent read; HTTP errors still fail below.
+      const previewResponse = await request.get(`/api/v1/jobs/${jobId}/preview?limit=5`, { maxRetries: 2 });
       expect(previewResponse.ok()).toBeTruthy();
       const preview = await previewResponse.json();
       if (scenario.workflow === "rfp_ranges") {
