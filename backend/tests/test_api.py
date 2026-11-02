@@ -100,7 +100,7 @@ def test_rfp_job_lifecycle() -> None:
         text_receipt = client.get(f"/api/v1/jobs/{created['job_id']}/receipt.txt")
         assert text_receipt.status_code == 200
         assert b"Production Tool Processing Receipt" in text_receipt.content
-        assert json_receipt.json()["schema_version"] == 2
+        assert json_receipt.json()["schema_version"] == 3
         assert client.get(f"/api/v1/jobs/{created['job_id']}/evidence.zip").status_code == 200
         assert download.headers["cache-control"] == "no-store"
         assert download.headers["x-content-type-options"] == "nosniff"
@@ -150,7 +150,7 @@ def json_bytes(value: dict) -> bytes:
     return json.dumps(value).encode("utf-8")
 
 
-def test_true_replacement_default_toggle_invalidates_review_and_persists_in_receipts() -> None:
+def test_column_true_replacement_toggle_invalidates_review_and_persists_in_receipts() -> None:
     source = (
         b"Bates/Control #,End Bates/Control #,Subject,Tag: Attorney Client\n"
         b"EXAMPLE_000001,EXAMPLE_000001,Re: True-up calculation for Q3,TRUE\n"
@@ -159,7 +159,7 @@ def test_true_replacement_default_toggle_invalidates_review_and_persists_in_rece
     )
     mapping = {"columns": [
         {"id": "subject", "name": "Subject", "source_fields": ["Subject"]},
-        {"id": "reason", "name": "Reason", "source_fields": ["Tag: Attorney Client"]},
+        {"id": "reason", "name": "Reason", "source_fields": ["Tag: Attorney Client"], "replace_true_with_header": True},
     ]}
     with TestClient(app) as client:
         job_id, uploaded = _create_and_upload(client, "markers.csv", source)
@@ -167,7 +167,7 @@ def test_true_replacement_default_toggle_invalidates_review_and_persists_in_rece
         assert client.put(f"/api/v1/jobs/{job_id}/workflow", json={"workflow": "privilege_log"}).status_code == 200
         saved = client.put(f"/api/v1/jobs/{job_id}/mapping", json=mapping)
         assert saved.status_code == 200
-        assert saved.json()["mapping"]["replace_true_with_header"] is True
+        assert saved.json()["mapping"]["columns"][1]["replace_true_with_header"] is True
         assert client.post(f"/api/v1/jobs/{job_id}/review", json={}).status_code == 202
         reviewed = _wait_job(client, job_id, {"ready_for_review", "failed"})
         assert reviewed["status"] == "ready_for_review"
@@ -177,13 +177,13 @@ def test_true_replacement_default_toggle_invalidates_review_and_persists_in_rece
             ["True copy of signed agreement", "Attorney Client"],
         ]
 
-        disabled = {**mapping, "replace_true_with_header": False}
+        disabled = {"columns": [mapping["columns"][0], {**mapping["columns"][1], "replace_true_with_header": False}]}
         saved = client.put(f"/api/v1/jobs/{job_id}/mapping", json=disabled)
         assert saved.status_code == 200
         assert saved.json()["review_token"] is None
         assert saved.json()["configuration_revision"] > reviewed["configuration_revision"]
         assert saved.json()["staged_artifact_sha256"] is None
-        assert client.get(f"/api/v1/jobs/{job_id}").json()["mapping"]["replace_true_with_header"] is False
+        assert client.get(f"/api/v1/jobs/{job_id}").json()["mapping"]["columns"][1]["replace_true_with_header"] is False
         assert client.get(f"/api/v1/jobs/{job_id}/preview").status_code == 409
         assert client.post(f"/api/v1/jobs/{job_id}/finalize", json={
             "output_filename": "stale", "review_token": reviewed["review_token"],
@@ -206,7 +206,8 @@ def test_true_replacement_default_toggle_invalidates_review_and_persists_in_rece
             "Is this statement true?,true\r\n"
             "True copy of signed agreement,  TrUe  \r\n"
         )
-        assert client.get(f"/api/v1/jobs/{job_id}/receipt.json").json()["mapping"]["replace_true_with_header"] is False
+        receipt_mapping = client.get(f"/api/v1/jobs/{job_id}/receipt.json").json()["mapping"]
+        assert receipt_mapping["columns"][1]["replace_true_with_header"] is False
         assert b'"replace_true_with_header":false' in client.get(f"/api/v1/jobs/{job_id}/receipt.txt").content
         assert store.source_path(job_id).read_bytes() == source
 
@@ -561,3 +562,45 @@ def test_incompatible_rfp_workflow_and_stale_review_token_are_rejected() -> None
             },
         )
         assert old_review.status_code == 409
+
+
+@pytest.mark.parametrize(
+    "headers,platform",
+    [
+        ("Bates/Control #,End Bates/Control #", "logikcull"),
+        ("Begin Bates Num from Production,End Bates Num from Production", "everlaw"),
+        ("Begin Bates,End Bates", "unknown"),
+    ],
+)
+@pytest.mark.parametrize("enabled", [True, False])
+def test_legacy_http_mapping_and_mixed_request_rejection(headers: str, platform: str, enabled: bool) -> None:
+    source = (headers + ",Tag: Attorney Client\nSYN_1,SYN_1,TRUE\n").encode()
+    column = {"id": "flag", "name": "Reason", "source_fields": ["Tag: Attorney Client"]}
+    legacy = {"columns": [column], "replace_true_with_header": enabled}
+    with TestClient(app) as client:
+        job_id, _ = _create_and_upload(client, "synthetic-flags.csv", source)
+        endpoint = f"/api/v1/jobs/{job_id}"
+        assert client.get(endpoint).json()["analysis"]["platform"] == platform
+        client.put(endpoint + "/workflow", json={"workflow": "privilege_log"}).raise_for_status()
+        saved = client.put(endpoint + "/mapping", json=legacy)
+        saved.raise_for_status()
+        assert "replace_true_with_header" not in saved.json()["mapping"]
+        assert saved.json()["mapping"]["columns"][0]["replace_true_with_header"] is (
+            enabled and platform == "logikcull"
+        )
+        assert client.post(endpoint + "/mapping/blank-cells", json=legacy).json()["blank_cells"] == [0]
+        ambiguous = {**legacy, "columns": [{**column, "replace_true_with_header": False}]}
+        for method, suffix in (("put", "/mapping"), ("post", "/mapping/blank-cells")):
+            response = getattr(client, method)(endpoint + suffix, json=ambiguous)
+            assert response.status_code == 422
+            assert "Reload the application" in response.text
+        assert client.get(endpoint).json()["configuration_revision"] == saved.json()["configuration_revision"]
+        mixed = {
+            "columns": [
+                {**column, "replace_true_with_header": True},
+                {**column, "id": "raw", "name": "Raw", "replace_true_with_header": False},
+            ]
+        }
+        updated = client.put(endpoint + "/mapping", json=mixed)
+        updated.raise_for_status()
+        assert [item["replace_true_with_header"] for item in updated.json()["mapping"]["columns"]] == [True, False]

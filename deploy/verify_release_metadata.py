@@ -39,6 +39,7 @@ def main() -> None:
 
     values = {
         "VERSION": canonical,
+        "container default": require_match(r"^ARG RELEASE_VERSION=([^\s]+)", dockerfile, "container RELEASE_VERSION"),
         "release metadata": metadata["application_version"],
         "frontend package": package["version"],
         "frontend lock root": package_lock["version"],

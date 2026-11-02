@@ -502,11 +502,11 @@
       "expectedRows": [
         [
           "SYNPRIV_0000001-92",
-          "TRUE",
-          "TRUE; Contains a TRUE marker",
-          "TRUE",
-          "True",
-          "TRUE"
+          "Attorney Client",
+          "Attorney Client; Contains a TRUE marker",
+          "Attorney Client",
+          "Attorney Client",
+          "'=Synthetic Formula"
         ],
         [
           "SYNPRIV_0000093-1596",
@@ -527,8 +527,8 @@
         [
           "SYNPRIV_0001599-1600",
           "",
-          " true ",
-          " true ",
+          "Work Product",
+          "Work Product",
           "",
           "'=1+1"
         ],
@@ -536,7 +536,7 @@
           "SYNPRIV_0001601",
           "",
           "",
-          "TRUE",
+          "TRUE in synthetic narrative",
           "",
           ""
         ],
@@ -546,7 +546,7 @@
           "\"TRUE\"; FALSE",
           "\"TRUE\"",
           "\"True\"",
-          "TRUE"
+          "'=Synthetic Formula"
         ],
         [
           "SYNPRIV_0013473-15869",
@@ -575,17 +575,17 @@
         [
           "SYNPRIV_0300000-300001",
           "TRUE, FALSE",
-          "TRUE, FALSE; true",
+          "TRUE, FALSE; Work Product",
           "TRUE, FALSE",
           "True, False",
           "FALSE"
         ],
         [
           "SYNPRIV_0400000-400001",
-          " true ",
-          " true ; Contains true; marker",
-          " true ",
-          " True ",
+          "Attorney Client",
+          "Attorney Client; Contains true; marker",
+          "Attorney Client",
+          "Attorney Client",
           ""
         ],
         [
@@ -597,7 +597,7 @@
           ""
         ]
       ],
-      "expectedEscapes": 1
+      "expectedEscapes": 3
     }
   ]
 }

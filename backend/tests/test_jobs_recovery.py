@@ -348,12 +348,12 @@ def test_true_replacement_choice_survives_catalog_reload(
     job_id = configured_rfp(store)
     store.set_workflow(job_id, "privilege_log")
     mapping = MappingConfig.model_validate({"columns": [
-        {"id": "begin", "name": "Begin", "source_fields": ["Begin Bates"]},
-    ], "replace_true_with_header": enabled})
+        {"id": "begin", "name": "Begin", "source_fields": ["Begin Bates"], "replace_true_with_header": enabled},
+    ]})
     store.set_mapping(job_id, mapping)
     restored = store_at(monkeypatch, tmp_path).get(job_id)
     assert restored.mapping is not None
-    assert restored.mapping.replace_true_with_header is enabled
+    assert restored.mapping.columns[0].replace_true_with_header is enabled
 
 
 def reviewed_rfp(store: JobStore) -> str:
@@ -398,8 +398,8 @@ def test_2_0_3_legacy_review_requires_new_review_after_upgrade(
     staged = directory / "staged.csv"
     staged.write_bytes(b"\xef\xbb\xbfSubject,Reason\r\n" + b"Subject,Attorney Client\r\n" * 3)
     mapping = MappingConfig.model_validate({"columns": [
-        {"id": "subject", "name": "Subject", "source_fields": ["Subject"]},
-        {"id": "flag", "name": "Reason", "source_fields": ["Tag: Attorney Client"]},
+        {"id": "subject", "name": "Subject", "source_fields": ["Subject"], "replace_true_with_header": True},
+        {"id": "flag", "name": "Reason", "source_fields": ["Tag: Attorney Client"], "replace_true_with_header": True},
     ]})
     with store._connect() as connection:
         job = store._load_locked(created.job_id, connection)
@@ -417,6 +417,9 @@ def test_2_0_3_legacy_review_requires_new_review_after_upgrade(
         store._save_locked(job, connection, task=task, task_payload={"output_filename": "old.csv", "acknowledged": []},
                            preserve_task=False)
         payload = job.model_dump(exclude={"review_build"})
+        payload["mapping"]["replace_true_with_header"] = True
+        for column in payload["mapping"]["columns"]:
+            column.pop("replace_true_with_header", None)
         connection.execute("UPDATE jobs SET payload=?,reserved_bytes=300 WHERE job_id=?",
                            (json.dumps(payload), job.job_id))
 

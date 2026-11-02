@@ -214,6 +214,13 @@ def test_privilege_blank_counts_follow_output_transforms(tmp_path: Path) -> None
     assert report.blank_cells == [2, 1, 1, 0]
 
 
+def true_mapping(payload: dict) -> MappingConfig:
+    enabled = payload.pop("replace_true_with_header", True)
+    for column in payload["columns"]:
+        column["replace_true_with_header"] = enabled and column.get("transform", {}).get("kind") != "shorten_bates"
+    return MappingConfig.model_validate(payload)
+
+
 @pytest.mark.parametrize("enabled", [True, False])
 @pytest.mark.parametrize(("value", "is_true"), [
     ("TRUE", True),
@@ -250,7 +257,7 @@ def test_logikcull_replaces_only_entire_true_cells(
     original = source.read_bytes()
     analysis = analyze_csv(source, source.name)
     assert analysis.platform == "logikcull"
-    mapping = MappingConfig.model_validate({"replace_true_with_header": enabled, "columns": [
+    mapping = true_mapping({"replace_true_with_header": enabled, "columns": [
         {"id": "subject", "name": "Subject", "source_fields": ["Subject"]},
         {"id": "flag", "name": "Flag", "source_fields": ["Tag: Attorney Client"]},
         {"id": "join", "name": "Join", "source_fields": ["Subject", "Tag: Attorney Client"],
@@ -278,7 +285,7 @@ def test_logikcull_true_markers_use_headers_in_direct_and_join(tmp_path: Path) -
     analysis = analyze_csv(source, source.name)
     assert analysis.platform == "logikcull"
     assert analysis.true_blank_headers == ["Attorney Client", "Work Product"]
-    mapping = MappingConfig.model_validate({"columns": [
+    mapping = true_mapping({"columns": [
         {"id": "direct", "name": "Direct", "source_fields": ["Attorney Client"]},
         {"id": "join", "name": "Joined", "source_fields": ["Attorney Client", "Work Product"],
          "transform": {"kind": "delimit", "delimiter": "; "}},
@@ -301,7 +308,7 @@ def test_logikcull_true_markers_use_headers_in_direct_and_join(tmp_path: Path) -
     assert rows == [["Direct", "Joined", "Mixed Notes", "Empty Flag"], *expected]
 
 
-def test_true_blank_header_conversion_depends_on_source_platform(tmp_path: Path) -> None:
+def test_explicit_true_conversion_is_independent_of_source_platform(tmp_path: Path) -> None:
     source = tmp_path / "everlaw-privilege.csv"
     source.write_text(
         "Begin Bates num from SYNTHETIC,End Bates num from SYNTHETIC,Attorney Client\n"
@@ -311,10 +318,10 @@ def test_true_blank_header_conversion_depends_on_source_platform(tmp_path: Path)
     analysis = analyze_csv(source, source.name)
     assert analysis.platform == "everlaw"
     assert analysis.true_blank_headers == []
-    mapping = MappingConfig.model_validate({"columns": [
+    mapping = true_mapping({"columns": [
         {"id": "direct", "name": "Direct", "source_fields": ["Attorney Client"]}
     ]})
-    assert list(iter_privilege_output_rows(source, mapping, analysis)) == [["TRUE"]]
+    assert list(iter_privilege_output_rows(source, mapping, analysis)) == [["Attorney Client"]]
 
     logikcull = tmp_path / "logikcull-with-rfp.csv"
     logikcull.write_text(
@@ -328,7 +335,7 @@ def test_true_blank_header_conversion_depends_on_source_platform(tmp_path: Path)
     assert list(iter_privilege_output_rows(logikcull, mapping, logikcull_analysis)) == [["Attorney Client"]]
     for platform in ("everlaw", "unknown"):
         other_analysis = logikcull_analysis.model_copy(update={"platform": platform})
-        assert list(iter_privilege_output_rows(logikcull, mapping, other_analysis)) == [["TRUE"]]
+        assert list(iter_privilege_output_rows(logikcull, mapping, other_analysis)) == [["Attorney Client"]]
 
 
 def test_true_replacement_affects_blank_counts_and_fill_before_selection(tmp_path: Path) -> None:
@@ -337,13 +344,14 @@ def test_true_replacement_affects_blank_counts_and_fill_before_selection(tmp_pat
         "Bates/Control #,End Bates/Control #,Tag:,Fallback\nEXAMPLE_1,EXAMPLE_2,TRUE,Other\n", encoding="utf-8",
     )
     analysis = analyze_csv(source, source.name)
-    mapping = MappingConfig.model_validate({"columns": [
+    mapping = true_mapping({"columns": [
         {"id": "direct", "name": "Direct", "source_fields": ["Tag:"]},
         {"id": "fill", "name": "Fill", "source_fields": ["Tag:", "Fallback"], "transform": {"kind": "fill"}},
     ]})
     assert list(iter_privilege_output_rows(source, mapping, analysis)) == [["", "Other"]]
     assert count_privilege_blank_cells(source, mapping, analysis).blank_cells == [1, 0]
-    mapping.replace_true_with_header = False
+    for column in mapping.columns:
+        column.replace_true_with_header = False
     assert list(iter_privilege_output_rows(source, mapping, analysis)) == [["TRUE", "TRUE"]]
     assert count_privilege_blank_cells(source, mapping, analysis).blank_cells == [0, 0]
 
@@ -361,7 +369,7 @@ def test_true_replacement_precedes_direct_join_fill_and_normalization(tmp_path: 
     original = source.read_bytes()
     analysis = analyze_csv(source, source.name)
     assert analysis.platform == "logikcull"
-    mapping = MappingConfig.model_validate({"replace_true_with_header": enabled, "columns": [
+    mapping = true_mapping({"replace_true_with_header": enabled, "columns": [
         {"id": "direct", "name": "Direct", "source_fields": ["Tag: ATTORNEY CLIENT"]},
         {"id": "join", "name": "Join", "source_fields": ["Tag: ATTORNEY CLIENT", "tag: Work Product"],
          "transform": {"kind": "delimit", "delimiter": "; "}},

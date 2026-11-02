@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "application_version": "2.0.5",
+  "reviewed_source_commit": "261c359bc57bf825fd11da9c1dba4031d6097df2",
+  "evidence_scope": "Historical qualification of reviewed_source_commit. The dependency remediation and current merge readiness are documented by the latest PR 44 checks and review comment; the finding below records the original baseline.",
+  "verdict": "functional_review_passed_release_security_gate_blocked",
+  "release_ready": false,
+  "remaining_findings": [
+    {
+      "priority": "P1",
+      "title": "Frontend dependency audit blocks release",
+      "moderate_findings": 18,
+      "advisory": "https://github.com/advisories/GHSA-g3hv-75wg-m249",
+      "affected_package": "minimatch",
+      "fixed_version": "11.0.1",
+      "scope": "Development dependencies; frontend dependency versions unchanged",
+      "gate": "npm audit --audit-level=low",
+      "gate_relaxed": false
+    }
+  ],
+  "addressed_review_findings": [
+    "Malformed template root values return the supported-schema error",
+    "Disabled TRUE control exposes disabled state to assistive technology",
+    "Queued finalization upgrade regression covers 6 retained-volume scenarios",
+    "Rollback requirements for per-column settings documented",
+    "Python runtime patched to 3.14.10_git20261028-r0",
+    "Read-only browser preview requests retry up to two connection resets; HTTP failures are not retried"
+  ],
+  "checks": {
+    "backend": {
+      "passed": 507,
+      "skipped": 2,
+      "coverage_percent": 98.36,
+      "platform": "Windows, Python 3.12.14"
+    },
+    "frontend": {
+      "passed": 122,
+      "statement_coverage_percent": 98.04,
+      "command": "vitest run --maxWorkers=1 --testTimeout=30000 --coverage"
+    },
+    "production_browser": {
+      "passed": 21
+    },
+    "upgrade": {
+      "previous_image": "itsraininghp/production-tool@sha256:478a35c5a3ab8d7b7e7a2d530e187dafc196395b030d4d65d2be7247926adc15",
+      "candidate_image": "production-tool-review:2.0.5",
+      "candidate_version": "2.0.5",
+      "retained_job_scenarios": 24,
+      "queued_finalization_scenarios": 6,
+      "mixed_column_scenarios": 3,
+      "result": "passed"
+    },
+    "production_container": {
+      "vulnerabilities": 0,
+      "secrets": 0,
+      "image_id": "sha256:2401dd2235215aa6f02b881aa7eb3ffbf0f33b596b23d148bdde612c7e496d32",
+      "source_revision": "261c359bc57bf825fd11da9c1dba4031d6097df2",
+      "non_root_user": "app",
+      "read_only": true,
+      "capabilities_dropped": [
+        "ALL"
+      ],
+      "private_network": true
+    },
+    "backend_audit": "No known vulnerabilities found",
+    "metadata_lint_types_unused": "passed",
+    "csv_lifecycle_corpus": {
+      "fixtures": 118,
+      "processable": 85,
+      "blocked_as_expected": 33,
+      "evidence": "artifacts/per-column-true/corpus-final.json",
+      "qualification": "Processor and mapping API code unchanged since this passing run"
+    }
+  },
+  "screenshots": {
+    "everlaw-column-settings.png": "dfcd66b8fca9f96864c07e65d8f55ccd6eb7b3eb98d2d84e5388620ec4282f8c",
+    "everlaw-mixed-review.png": "e6067b9428ff2d2183ef0019517e33c0949d784731eedf245ce54d2deb617696",
+    "logikcull-column-settings.png": "dfcd66b8fca9f96864c07e65d8f55ccd6eb7b3eb98d2d84e5388620ec4282f8c",
+    "logikcull-mixed-review.png": "e6067b9428ff2d2183ef0019517e33c0949d784731eedf245ce54d2deb617696"
+  },
+  "data_notice": "All screenshots and upgrade inputs are synthetic."
+}

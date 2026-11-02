@@ -521,11 +521,19 @@ export interface components {
         MappingConfig: {
             /** Columns */
             columns: components["schemas"]["OutputColumn"][];
+        };
+        /**
+         * MappingRequest
+         * @description Accept old job-wide requests without exposing the legacy flag in saved mappings.
+         */
+        MappingRequest: {
+            /** Columns */
+            columns: components["schemas"]["OutputColumn"][];
             /**
              * Replace True With Header
-             * @default true
+             * @deprecated
              */
-            replace_true_with_header: boolean;
+            replace_true_with_header?: boolean | null;
         };
         /** MappingTransform */
         MappingTransform: {
@@ -552,6 +560,11 @@ export interface components {
              * @default false
              */
             normalize: boolean;
+            /**
+             * Replace True With Header
+             * @default false
+             */
+            replace_true_with_header: boolean;
         };
         /** OutputStats */
         OutputStats: {
@@ -899,7 +912,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["MappingConfig"];
+                "application/json": components["schemas"]["MappingRequest"];
             };
         };
         responses: {
@@ -934,7 +947,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["MappingConfig"];
+                "application/json": components["schemas"]["MappingRequest"];
             };
         };
         responses: {

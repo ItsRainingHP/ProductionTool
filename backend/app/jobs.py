@@ -34,6 +34,7 @@ from .models import (
     JobWorkflow,
     MappingBlankReport,
     MappingConfig,
+    MappingRequest,
     PleadingSettings,
     Preview,
     ProcessingBuild,
@@ -663,6 +664,8 @@ class JobStore:
                 raise HTTPException(409, "A readable CSV must be uploaded first")
             if job.workflow != "privilege_log":
                 raise HTTPException(409, "Select the Privilege Log workflow first")
+            if isinstance(mapping, MappingRequest):
+                mapping = mapping.to_config(analysis.platform)
             unknown = sorted(
                 {field for column in mapping.columns for field in column.source_fields} - set(analysis.headers)
             )
@@ -679,6 +682,8 @@ class JobStore:
         self._ensure_configurable(job)
         if job.workflow != "privilege_log" or job.analysis is None:
             raise HTTPException(409, "Select the Privilege Log workflow first")
+        if isinstance(mapping, MappingRequest):
+            mapping = mapping.to_config(job.analysis.platform)
         unknown = sorted(
             {field for column in mapping.columns for field in column.source_fields} - set(job.analysis.headers)
         )

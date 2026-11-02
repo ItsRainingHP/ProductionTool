@@ -21,7 +21,7 @@ from .models import (
     JobCreated,
     JobView,
     MappingBlankReport,
-    MappingConfig,
+    MappingRequest,
     PleadingSettings,
     Preview,
     ReviewRequest,
@@ -124,12 +124,12 @@ def set_workflow(job_id: str, payload: WorkflowUpdate) -> JobView:
 
 
 @app.put("/api/v1/jobs/{job_id}/mapping", response_model=JobView)
-def set_mapping(job_id: str, payload: MappingConfig) -> JobView:
+def set_mapping(job_id: str, payload: MappingRequest) -> JobView:
     return store.set_mapping(job_id, payload)
 
 
 @app.post("/api/v1/jobs/{job_id}/mapping/blank-cells", response_model=MappingBlankReport)
-def inspect_mapping_blanks(job_id: str, payload: MappingConfig) -> MappingBlankReport:
+def inspect_mapping_blanks(job_id: str, payload: MappingRequest) -> MappingBlankReport:
     return store.inspect_mapping_blanks(job_id, payload)
 
 

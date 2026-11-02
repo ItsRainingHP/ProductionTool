@@ -11,7 +11,8 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const fixtures = path.resolve(__dirname, "../../examples");
-const trueEvidence = path.resolve(__dirname, "../../artifacts/true-cell-regression");
+const trueEvidence = path.resolve(process.env.TRUE_REPLACEMENT_ARTIFACT_DIR
+  ?? path.resolve(__dirname, "../../artifacts/per-column-true/browser"));
 
 async function upload(page: Page, relativePath: string) {
   await page.goto("/wizard");
@@ -112,9 +113,11 @@ test("privilege wizard produces a spreadsheet-safe CSV", async ({ page }) => {
   expect(text).toContain("SYNREFLCPRV001-0000001");
 });
 
+for (const platform of ["logikcull", "everlaw", "unknown"] as const) {
 for (const enabled of [true, false]) {
-  test(`Logikcull TRUE replacement ${enabled ? "enabled" : "disabled"} persists through review and download`, async ({ page, request }) => {
-    const mode = enabled ? "enabled" : "disabled";
+  test(`${platform} TRUE replacement ${enabled ? "enabled" : "disabled"} persists through review and download`, async ({ page, request }) => {
+    test.setTimeout(60_000);
+    const mode = `${platform}-${enabled ? "enabled" : "disabled"}`;
     const releaseVersion = (await readFile(path.resolve(__dirname, "../../VERSION"), "utf8")).trim();
     await mkdir(trueEvidence, { recursive: true });
     await page.setViewportSize({ width: 1600, height: 1100 });
@@ -122,7 +125,7 @@ for (const enabled of [true, false]) {
     await page.locator('input[type="file"]').setInputFiles({
       name: "synthetic-true-markers.csv", mimeType: "text/csv",
       buffer: Buffer.from(
-        "Bates/Control #,End Bates/Control #,Subject,Tag: Attorney Client,Tag: Work Product\n"
+        (platform === "logikcull" ? "Bates/Control #,End Bates/Control #" : platform === "everlaw" ? "Begin Bates Num from Production,End Bates Num from Production" : "Begin Bates,End Bates") + ",Subject,Tag: Attorney Client,Tag: Work Product\n"
         + "EXAMPLE_000001,EXAMPLE_000092,Re: True-up calculation for Q3,TRUE,true\n"
         + "EXAMPLE_000093,EXAMPLE_001596,Is this statement true?,TrUe,  true  \n"
         + "EXAMPLE_001597,EXAMPLE_001598,True copy of signed agreement,TRUE,FALSE\n"
@@ -131,20 +134,27 @@ for (const enabled of [true, false]) {
       ),
     });
     await page.getByRole("button", { name: "Continue" }).click();
-    const checkbox = page.getByRole("checkbox", { name: "Replace cells containing TRUE with column headings" });
-    await expect(checkbox).toBeChecked();
-    await checkbox.uncheck();
+    await expect(page).toHaveURL(/\/advanced$/, { timeout: 15_000 });
+    await page.waitForLoadState("networkidle");
+    const checkbox = page.locator(".mapping-column-card").nth(2).getByRole("checkbox", { name: "Replace TRUE cells with source headings" });
+    const secondFlag = page.locator(".mapping-column-card").nth(3).getByRole("checkbox", { name: "Replace TRUE cells with source headings" });
+    await expect(page.locator(".mapping-column-card").nth(0).getByRole("checkbox", {
+      name: "Replace TRUE cells with source headings",
+    })).toBeDisabled();
+    await expect(checkbox).not.toBeChecked();
+    await expect(secondFlag).not.toBeChecked();
+    await checkbox.check();
     await page.goBack();
     await expect(page.getByRole("heading", { name: "Choose the output" })).toBeVisible();
     await page.goForward();
-    await expect(checkbox).not.toBeChecked();
+    await expect(checkbox).toBeChecked();
     await expect(page).toHaveURL(/\/advanced$/);
     await page.reload();
-    await expect(checkbox).not.toBeChecked();
-    await page.getByRole("button", { name: "Discard draft" }).click();
     await expect(checkbox).toBeChecked();
-    if (!enabled) await checkbox.uncheck();
-    await expect(page.getByText(/only when its entire value is TRUE/)).toBeVisible();
+    await page.getByRole("button", { name: "Discard draft" }).click();
+    await expect(checkbox).not.toBeChecked();
+    if (enabled) { await checkbox.check(); await secondFlag.check(); }
+    await expect(page.getByText(/only when its entire value is TRUE/).first()).toBeVisible();
     await page.screenshot({ path: path.join(trueEvidence, `${mode}-settings.png`), fullPage: true, animations: "disabled" });
     await page.getByRole("button", { name: "Review output" }).click();
     await expect(page.getByRole("heading", { name: "Review your output" })).toBeVisible();
@@ -180,7 +190,9 @@ for (const enabled of [true, false]) {
     await writeFile(path.join(trueEvidence, `${mode}.csv`), text);
     const receipt = await request.get(`/api/v1/jobs/${jobId}/receipt.json`);
     const receiptJson = await receipt.json();
-    expect(receiptJson.mapping.replace_true_with_header).toBe(enabled);
+    expect(receiptJson.platform).toBe(platform);
+    expect(receiptJson.mapping.columns.map((column: { replace_true_with_header: boolean }) => column.replace_true_with_header)).toEqual([false, false, enabled, enabled]);
+    expect(receiptJson.schema_version).toBe(3);
     expect(receiptJson.app_version).toBe(releaseVersion);
     await writeFile(path.join(trueEvidence, `${mode}-receipt.json`), JSON.stringify(receiptJson, null, 2) + "\n");
     const receiptText = await (await request.get(`/api/v1/jobs/${jobId}/receipt.txt`)).text();
@@ -190,6 +202,8 @@ for (const enabled of [true, false]) {
   });
 }
 
+}
+
 test("blocking CSV cannot advance beyond validation", async ({ page }) => {
   await upload(page, "generated/everlaw/pleading/invalid/ew_pleading_018_missing_begin_bates_column.csv");
   await expect(page.getByRole("heading", { name: "Review CSV problems" })).toBeVisible();
@@ -197,6 +211,52 @@ test("blocking CSV cannot advance beyond validation", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Choose another CSV" })).toBeVisible();
   await expect(page.getByRole("button", { name: /Continue/ })).toHaveCount(0);
 });
+
+for (const platform of ["logikcull", "everlaw"] as const) {
+  test(`${platform} keeps TRUE settings independent when an input is reused`, async ({ page, request }) => {
+    await mkdir(trueEvidence, { recursive: true });
+    await page.setViewportSize({ width: 1500, height: 1100 });
+    const bates = platform === "logikcull" ? "Bates/Control #,End Bates/Control #"
+      : "Begin Bates Num from Production,End Bates Num from Production";
+    await page.goto("/wizard");
+    await page.getByLabel("Upload source CSV").setInputFiles({ name: "synthetic-mixed-flags.csv", mimeType: "text/csv",
+      buffer: Buffer.from(`${bates},Subject,Tag: Attorney Client\nSYN_1,SYN_1,Is this statement true?,TrUe\n`) });
+    await page.getByRole("button", { name: "Continue" }).click();
+    await expect(page).toHaveURL(/\/advanced$/, { timeout: 15_000 });
+    await page.waitForLoadState("networkidle");
+    const columns = [
+      { id: "on", name: "Privilege reason", source_fields: ["Tag: Attorney Client"], replace_true_with_header: true },
+      { id: "off", name: "Original flag", source_fields: ["Tag: Attorney Client"], replace_true_with_header: false },
+      { id: "subject", name: "Subject", source_fields: ["Subject"], replace_true_with_header: false },
+    ].map((column) => ({ ...column, normalize: false, transform: { kind: "none", delimiter: null } }));
+    const template = { schemaVersion: 2, templates: [{ schemaVersion: 2, id: "mixed", name: "Independent flags",
+      createdAt: "2026-11-02T00:00:00Z", updatedAt: "2026-11-02T00:00:00Z", columns }] };
+    await page.getByLabel("Import mapping templates").setInputFiles({ name: "mixed.json", mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(template)) });
+    await page.getByRole("button", { name: "Apply", exact: true }).click();
+    const cards = page.locator(".mapping-column-card");
+    const option = "Replace TRUE cells with source headings";
+    await expect(cards.nth(0).getByRole("checkbox", { name: option })).toBeChecked();
+    await expect(cards.nth(1).getByRole("checkbox", { name: option })).not.toBeChecked();
+    await cards.nth(0).screenshot({ path: path.join(trueEvidence, `${platform}-column-settings.png`), animations: "disabled" });
+    await page.screenshot({ path: path.join(trueEvidence, `${platform}-mixed-settings.png`), fullPage: true, animations: "disabled" });
+    await page.getByRole("button", { name: "Review output" }).click();
+    await expect(page.getByRole("cell", { name: "Attorney Client", exact: true })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "TrUe", exact: true })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "Is this statement true?", exact: true })).toBeVisible();
+    await page.screenshot({ path: path.join(trueEvidence, `${platform}-mixed-review.png`), fullPage: true, animations: "disabled" });
+    const jobId = new URL(page.url()).pathname.split("/")[2];
+    expect((await (await request.get(`/api/v1/jobs/${jobId}/preview`)).json()).rows)
+      .toEqual([["Attorney Client", "TrUe", "Is this statement true?"]]);
+    await page.getByRole("button", { name: "Finalize CSV" }).click();
+    await expect(page.getByRole("heading", { name: "Your CSV is ready" })).toBeVisible();
+    const receipt = await (await request.get(`/api/v1/jobs/${jobId}/receipt.json`)).json();
+    expect(receipt.mapping.columns.map((column: { replace_true_with_header: boolean }) => column.replace_true_with_header))
+      .toEqual([true, false, false]);
+    expect(await downloadText(page, /Download CSV/)).toContain("Attorney Client,TrUe,Is this statement true?");
+    await request.delete(`/api/v1/jobs/${jobId}`);
+  });
+}
 
 for (const fixture of [
   "generated/everlaw/privilege/valid/ew_privilege_015_high_volume.csv",

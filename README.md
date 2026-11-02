@@ -9,7 +9,7 @@ Production Tool converts Everlaw and Logikcull CSV exports into formatted RFP/pl
 - Groups shortened, contiguous Bates ranges beneath each RFP heading.
 - Builds privilege logs with direct fields, shortened Bates ranges, delimited combinations, and ordered first-nonblank fallback fields.
 - Uses unpadded ending numbers in shortened Bates ranges, for example `EXAMPLE_000001-92`.
-- Replaces Logikcull privilege cells only when their entire value is `TRUE`, ignoring case and surrounding whitespace, with their source heading, excluding a leading `Tag:`, before Direct, Join, or Fill. Text containing `TRUE` is preserved. This Advanced option defaults to enabled and can be turned off for each job.
+- Optionally replaces whole-cell `TRUE` values with source headings in any privilege log, including Everlaw and Logikcull. Enable **Replace TRUE cells with source headings** below **Normalize names and emails** for each output column; it starts disabled and affects only that column’s mapped inputs. Matching ignores case and surrounding whitespace, removes a leading `Tag:` from the source heading, and runs before Direct, Join, or Fill and normalization. Text containing `TRUE` is preserved. Bates range columns do not use this setting.
 - Provides configurable pleading separators and an optional final “and.”
 - Reports advisory-only findings for possible Social Security numbers, dates of birth, consumer email domains, and one-word names or usernames in people fields.
 - Optionally normalizes contact text while protecting generated CSV cells from spreadsheet-formula execution.
@@ -27,6 +27,14 @@ Personal-data findings are informational. They do not modify the uploaded CSV an
 3. Select RFP/pleading ranges or privilege-log output.
 4. Configure the requested formatting or field mapping.
 5. Review a preview, acknowledge any overrideable warnings, and download the generated file.
+
+### Per-column TRUE replacement in 2.0.5
+
+Mapping requests now put `replace_true_with_header` on each output column (default `false`). The deprecated job-wide request flag remains accepted for legacy clients only: it retains its previous Logikcull-only behavior and cannot be combined with explicit column flags. Mixed requests return HTTP 422 with instructions to reload or update the request. Saved mappings and responses contain only column settings.
+
+Existing job settings and tab drafts migrate automatically, preserving the previous effective platform behavior. New template exports and tab drafts use schema 2; schema 1 templates import with replacement disabled because they did not store the global choice. New receipts use schema 3 and record each column’s setting. Existing completed receipts and downloads are retained unchanged. Pending output requires a new review after upgrading; clearing job data is unnecessary.
+
+Take a snapshot of the retained job volume before upgrading. Version 2.0.4 cannot represent independent per-column TRUE settings, so a rollback must restore the pre-upgrade volume snapshot or use a separate job volume and reconfigure newly uploaded sources. Completed evidence exported before rollback remains readable independently of the running application.
 
 ### API upload change in 2.0.0
 
@@ -109,6 +117,14 @@ Runtime container dependencies are installed from the hash-locked `backend/requi
 
 Open `http://localhost:3000`. In development, Next.js proxies `/api` requests to `http://127.0.0.1:8000` by default.
 
+### Security compatibility for frontend tooling
+
+All frontend tooling uses the patched `minimatch` 11.0.4 through a pinned development dependency and npm override. The existing ESLint, React/accessibility/import plugins and API generator still require older module exports. `npm ci` runs `frontend/scripts/secure-tooling.mjs` to preserve their callable CommonJS and default ESM imports. It also changes the import plugin's two removed `makeRe` calls to predicates backed by the patched matcher; it does not restore the old regular-expression engine or alter minimatch's matching implementation.
+
+The adapter verifies the exact versions and SHA-256 hashes of the three published files before writing anything, accepts only its exact prepared result on repeated runs, and fails installation for unknown source changes. Keep npm install scripts enabled. A production-only install that omits these development dependencies does not need the adapter. Do not update the expected versions or hashes without reviewing the upstream changes and repeating qualification.
+
+Run `npm run test:tooling` to exercise the actual ESLint configuration, import restrictions, React render-prop handling, accessibility controls, ESM configuration, OpenAPI header matching/type generation, source-integrity rejection and bounded processing of amplifying glob input. CI also verifies `npm ls --all` and retains the full `npm audit --audit-level=low` gate. Remove the compatibility adapter and its legacy-specific checks when the parent tools support the patched API directly; this is a compatibility migration, not a vulnerability exception.
+
 ## Validation
 
 Run the backend test suite:
@@ -124,6 +140,7 @@ Run the frontend checks:
 cd frontend
 npm run typecheck
 npm run lint
+npm run test:tooling
 npm run check:unused
 npm run test
 npm run build
