@@ -18,6 +18,12 @@ type DetectedWorkflow = Literal["rfp_ranges", "privilege_log", "unknown"]
 type JobWorkflow = Literal["rfp_ranges", "privilege_log"]
 
 
+class SystemStatus(BaseModel):
+    current_version: str
+    latest_version: str | None
+    update_available: bool
+
+
 class JobStatus(StrEnum):
     awaiting_upload = "awaiting_upload"
     uploading = "uploading"

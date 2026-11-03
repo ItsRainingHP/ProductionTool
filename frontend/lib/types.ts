@@ -9,6 +9,7 @@ import type { components } from "./api-schema";
 
 type Schema = components["schemas"];
 
+export type SystemStatus = Schema["SystemStatus"];
 export type Workflow = Schema["WorkflowUpdate"]["workflow"];
 export type TransformKind = Schema["MappingTransform"]["kind"];
 export type Issue = Required<Schema["Issue"]>;

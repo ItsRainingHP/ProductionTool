@@ -15,6 +15,7 @@ Production Tool converts Everlaw and Logikcull CSV exports into formatted RFP/pl
 - Optionally normalizes contact text while protecting generated CSV cells from spreadsheet-formula execution.
 - Runs analysis and finalization on a durable local queue that resumes unfinished work after restart.
 - Saves reusable privilege-log mappings in the current browser and imports or exports versioned JSON templates.
+- Offers a skippable first-use tour after **Start Processing**, with component highlights, separate introductions for each output path, and optional mapping/formatting help. Pause inside the tour and use **Help** in the production workspace to resume or replay guidance. Tour preferences stay in browser storage; the bundled tour uses no external service or analytics. The home page has no tour popup.
 - Produces JSON and text processing receipts with input/output hashes and applied settings.
 - Deletes expired jobs automatically; the default retention period is four hours.
 
@@ -54,6 +55,14 @@ RFP processing scratch and SQLite disk-based temporary files also use the job vo
 The canonical application version is stored in `VERSION`; `deploy/release-metadata.json` records the API/receipt schemas, digest-pinned base images, and qualified runtime versions. The production runtime uses Wolfi packages with SQLite 3.54.1 or newer, Python 3.14, and Node 22.23.4. The application retains UID/GID 999 for compatibility with existing job volumes. CI verifies this identity, the installed versions, and the production Python lockfile inside the image before testing the browser workflows.
 
 Security gates audit all frontend and Python development dependencies and scan the complete production image at every severity, including unfixed findings. A successful run has no known vulnerability findings in these audits; scans must be repeated as advisory data changes.
+
+### Footer Systems Status
+
+The footer shows **Systems Status** below the version number. Its circle is green with the browser hover text `ready`, or yellow with `update available` when a newer stable ProductionTool version is published. These messages appear only as native hover text on the circle, never as permanent footer text. Screen readers receive the status through the circle's accessible label. This is an update indicator; it does not install updates or measure service health.
+
+`GET /api/v1/system-status` returns `current_version`, nullable `latest_version`, and `update_available`. The backend checks the `APP_VERSION` environment entry in the published `docker.io/itsraininghp/production-tool:latest` Linux/amd64 image configuration, using anonymous, pull-scoped Docker Registry API requests. It retrieves metadata only, with a five-second timeout per request and a one-MiB limit per response. The server requires outbound HTTPS to `auth.docker.io`, `registry-1.docker.io`, and Docker's metadata CDN redirects; browser clients contact only the local application. Uploaded files and job data are never sent with these checks.
+
+Status requests immediately return cached results while one background worker refreshes metadata. Successful checks are shared across clients and cached in memory for one hour. Failed checks retain the last confirmed result and retry after five minutes; before any successful check, the circle stays green. This cache resets on application restart. Visible browser tabs refresh their local status every five minutes and when becoming visible, retaining their last color on request failure and across page navigation.
 
 ## Requirements
 

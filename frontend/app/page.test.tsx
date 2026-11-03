@@ -13,6 +13,8 @@ describe("application pages", () => {
     expect(screen.getByRole("heading", { name: "RFP ranges" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Privilege mapping" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Start Processing" })).toHaveAttribute("href", "/wizard");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Help and guided tour" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Visit the Once UI website" })).toHaveAttribute("rel", "noopener noreferrer");
   });
 

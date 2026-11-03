@@ -18,7 +18,8 @@ CORPUS = Path(__file__).resolve().parents[2] / "examples"
 
 
 @pytest.fixture(autouse=True)
-def clean_job_store():
+def clean_job_store(request):
+    assert store.root.resolve() == request.config.production_test_root
     store.stop()
     with store._lock, store._connect() as connection:
         for row in connection.execute("SELECT job_id FROM jobs").fetchall():
@@ -359,6 +360,58 @@ def test_warnings_require_exact_acknowledgments() -> None:
         )
         assert complete.status_code == 202
         assert _wait_job(client, job_id, {"complete", "failed"})["status"] == "complete"
+
+
+@pytest.mark.parametrize("workflow", ["rfp_ranges", "privilege_log"])
+def test_bates_only_warning_requires_acknowledgment_and_preserves_workflow_output(workflow: str) -> None:
+    source = (
+        b"Begin Bates,End Bates,Tag: RFP 01,Redact,Withhold,Subject\r\n"
+        b"ABC0001,ABC0002,TRUE,Redact,,Populated subject\r\n"
+        b"ABC0003,ABC0004,,,,\r\n"
+        b"ABC0005,ABC0006, ,\t, , \r\n"
+    )
+    with TestClient(app) as client:
+        job_id, uploaded = _create_and_upload(client, "bates-only.csv", source)
+        payload = uploaded.json()
+        assert payload["status"] == "needs_configuration"
+        assert [(item["code"], item["count"], item["row"]) for item in payload["analysis"]["issues"]] == [
+            ("bates_only_row", 2, 3)
+        ]
+        assert client.put(f"/api/v1/jobs/{job_id}/workflow", json={"workflow": workflow}).status_code == 200
+        if workflow == "privilege_log":
+            assert client.put(f"/api/v1/jobs/{job_id}/mapping", json={"columns": [
+                {"id": "range", "name": "Bates Range", "source_fields": ["Begin Bates", "End Bates"],
+                 "transform": {"kind": "shorten_bates"}},
+                {"id": "privilege", "name": "Privilege", "source_fields": ["Redact", "Withhold"],
+                 "transform": {"kind": "fill"}},
+            ]}).status_code == 200
+        assert client.post(f"/api/v1/jobs/{job_id}/review", json={}).status_code == 409
+        acknowledged = ["bates_only_row"]
+        assert client.post(f"/api/v1/jobs/{job_id}/review", json={
+            "acknowledged_issue_codes": acknowledged,
+        }).status_code == 202
+        reviewed = _wait_job(client, job_id, {"ready_for_review", "failed"})
+        assert reviewed["status"] == "ready_for_review"
+        preview = client.get(f"/api/v1/jobs/{job_id}/preview").json()
+        if workflow == "privilege_log":
+            assert preview["rows"] == [["ABC0001-2", "Redact"], ["ABC0003-4", ""], ["ABC0005-6", ""]]
+        else:
+            assert preview["text"] == "RFP 01\r\nABC0001-2\r\n"
+        assert client.post(f"/api/v1/jobs/{job_id}/finalize", json={
+            "output_filename": "bates-only", "acknowledged_issue_codes": acknowledged,
+            "review_token": reviewed["review_token"],
+        }).status_code == 202
+        assert _wait_job(client, job_id, {"complete", "failed"})["status"] == "complete"
+        output = client.get(f"/api/v1/jobs/{job_id}/download").content
+        if workflow == "privilege_log":
+            assert output.decode("utf-8-sig") == (
+                "Bates Range,Privilege\r\nABC0001-2,Redact\r\nABC0003-4,\r\nABC0005-6,\r\n"
+            )
+        else:
+            assert output == b"RFP 01\r\nABC0001-2\r\n"
+        receipt = client.get(f"/api/v1/jobs/{job_id}/receipt.json").json()
+        assert receipt["issue_counts"] == {"bates_only_row": 2}
+        assert receipt["acknowledged_issue_codes"] == acknowledged
 
 
 def test_personal_data_findings_do_not_block_normalized_privilege_finalization() -> None:

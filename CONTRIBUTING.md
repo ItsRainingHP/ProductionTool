@@ -4,6 +4,8 @@ Contributions should be focused, reviewable, and supported by tests. Never submi
 
 ## Local validation
 
+Pytest assigns an owned temporary job directory before application imports, overriding inherited storage paths to protect local jobs.
+
 Install the backend dependencies and run its tests:
 
 ```powershell

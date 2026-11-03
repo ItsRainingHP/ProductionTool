@@ -12,9 +12,21 @@ import { Providers } from "../../app/providers";
 import type { OutputColumn } from "../../lib/types";
 import { MappingEditor } from "./mapping-editor";
 
+vi.mock("../../lib/api", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../lib/api")>(),
+  getSystemStatus: vi.fn().mockResolvedValue({ update_available: false }),
+}));
+
 describe("MappingEditor normalization", () => {
   afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
   beforeEach(() => {
+    class TestPointerEvent extends MouseEvent {
+      pointerId = 1;
+      pointerType = "mouse";
+      isPrimary = true;
+    }
+    vi.stubGlobal("PointerEvent", TestPointerEvent);
+    Object.defineProperty(document, "elementFromPoint", { configurable: true, value: vi.fn(() => null) });
     Object.defineProperty(window, "localStorage", {
       configurable: true,
       value: { getItem: vi.fn(() => null), setItem: vi.fn(), removeItem: vi.fn(), clear: vi.fn() },
@@ -154,10 +166,10 @@ describe("MappingEditor normalization", () => {
       transform: { kind: "none", delimiter: null }, normalize: false, replace_true_with_header: false }];
     const { container } = render(<Harness headers={["Begin Bates", "End Bates"]} initial={initial} />);
     const endChip = Array.from(container.querySelectorAll(".source-chip")).find((button) => button.textContent?.includes("End Bates"))!;
-    fireEvent.mouseDown(endChip);
-    fireEvent.mouseEnter(container.querySelector(".mapping-fields")!);
-    fireEvent.mouseUp(container.querySelector(".mapping-fields")!);
-    fireEvent.mouseLeave(container.querySelector(".mapping-fields")!);
+    vi.mocked(document.elementFromPoint).mockReturnValue(container.querySelector(".mapping-fields"));
+    fireEvent.pointerDown(endChip, { clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(window, { clientX: 30, clientY: 30 });
+    fireEvent.pointerUp(window, { clientX: 30, clientY: 30 });
     expect(state()[0].source_fields).toEqual(["Begin Bates", "End Bates"]);
     expect(state()[0].transform.kind).toBe("shorten_bates");
     const choices = within(screen.getByRole("group", { name: "Transform for Range" }));

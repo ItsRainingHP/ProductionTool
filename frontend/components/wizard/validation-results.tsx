@@ -60,7 +60,7 @@ export function ValidationResults({ analysis, acknowledged = [], onToggle, detai
         </Row>
         <Column gap="4" flex={1}>
           <Row gap="8" vertical="center" wrap>
-            <Heading as="h2" variant="heading-strong-m">{title}</Heading>
+            <Heading as="h2" data-tour="validation" variant="heading-strong-m">{title}</Heading>
             <Tag variant={tagVariant}>{tone === "valid" ? "Valid" : tone === "warning" ? "Warnings" : "Blocked"}</Tag>
           </Row>
           <Text variant="body-default-s">{explanation}</Text>

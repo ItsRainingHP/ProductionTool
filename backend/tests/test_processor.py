@@ -726,6 +726,58 @@ def test_recoverable_issue_has_warning_metadata(tmp_path: Path) -> None:
     assert issue.count == 2
 
 
+@pytest.mark.parametrize(
+    "headers",
+    [
+        ["Begin Bates", "End Bates", "Subject", "Notes"],
+        ["Notes", "End Bates", "Subject", "Begin Bates"],
+        ["Bates/Control #", "End Bates/Control #", "Subject", "Notes"],
+        ["Begin Bates num from MATTER", "End Bates num from MATTER", "Subject", "Notes"],
+    ],
+)
+def test_bates_only_rows_warn_with_count_and_first_row(tmp_path: Path, headers: list[str]) -> None:
+    source = tmp_path / "bates-only.csv"
+    with source.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(headers)
+        for begin, end, subject, notes in [
+            ("ABC0001", "ABC0002", "Populated subject", ""),
+            ("ABC0003", "ABC0004", "", ""),
+            ("ABC0005", "ABC0006", " \t ", "\n "),
+            ("ABC0007", "ABC0008", "FALSE", ""),
+            ("ABC0009", "ABC0010", "0", ""),
+            ("ABC0011", "ABC0012", "", "Metadata"),
+            ("", "ABC0013", "", ""),
+            ("ABC0014", "", "", ""),
+            ("", "", "", ""),
+        ]:
+            values = {"Subject": subject, "Notes": notes}
+            for header in headers:
+                if header not in values:
+                    values[header] = end if header.startswith("End") else begin
+            writer.writerow([values[header] for header in headers])
+        writer.writerow(["ABC0015", "ABC0016"])
+    original = source.read_bytes()
+
+    analysis = analyze_csv(source, source.name)
+    issue = next(item for item in analysis.issues if item.code == "bates_only_row")
+    assert issue.severity == "warning"
+    assert issue.overrideable is True
+    assert issue.count == 2
+    assert issue.row == 3
+    assert issue.column is None
+    assert "missing tags or metadata" in issue.message
+    assert "ABC0003" not in issue.message
+    assert source.read_bytes() == original
+
+
+def test_two_column_bates_export_warns_for_each_populated_row(tmp_path: Path) -> None:
+    source = tmp_path / "ranges-only.csv"
+    source.write_text("Begin Bates,End Bates\nABC0001,ABC0002\nABC0003,ABC0004\n", encoding="utf-8")
+    analysis = analyze_csv(source, source.name)
+    assert [(issue.code, issue.count, issue.row) for issue in analysis.issues] == [("bates_only_row", 2, 2)]
+
+
 def test_header_only_file_is_blocking(tmp_path: Path) -> None:
     source = tmp_path / "header-only.csv"
     source.write_text("Bates/Control #,End Bates/Control #,RFP\n", encoding="utf-8")

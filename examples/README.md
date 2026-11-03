@@ -10,7 +10,7 @@ All people, organizations, companies, government bodies, legal matters, document
 - `generated/`: 108 fixtures covering Logikcull and Everlaw pleading/RFP and privilege-log workflows, including focused personal-data, contact-normalization, large Bates end-range, TRUE-marker, and output stress fixtures.
 - `manifest.json`: the machine-readable source of truth for every fixture, its expected status, seeded conditions, expected contiguous RFP ranges, and production-wizard output statistics and hash.
 
-Each generated platform/type set contains 15 valid or edge-valid fixtures and 10 intentionally invalid fixtures, with eight additional focused fixtures. `validation_error` means the file is parseable CSV but violates structural or Bates rules. `parse_error` means byte decoding or strict CSV parsing should fail.
+Each generated platform/type set contains 15 valid or edge-valid fixtures and 10 intentionally invalid fixtures, with eight additional focused fixtures. `validation_error` means the file is parseable CSV but has structural, Bates, or completeness issues, including rows populated only in the two Bates columns. Recoverable warnings require acknowledgment before output. `parse_error` means byte decoding or strict CSV parsing should fail.
 
 ## Synthetic conventions
 

@@ -8,6 +8,7 @@
 "use client";
 
 import { IconProvider, LayoutProvider, ThemeProvider, ToastProvider } from "@once-ui-system/core";
+import { SystemStatusProvider } from "@/components/system-status";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -25,7 +26,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     >
       <LayoutProvider>
         <IconProvider>
-          <ToastProvider>{children}</ToastProvider>
+          <ToastProvider><SystemStatusProvider>{children}</SystemStatusProvider></ToastProvider>
         </IconProvider>
       </LayoutProvider>
     </ThemeProvider>

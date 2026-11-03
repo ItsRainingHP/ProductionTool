@@ -6,7 +6,8 @@
  */
 
 import { Wizard } from "@/components/wizard/wizard";
+import { OnboardingProvider } from "@/components/onboarding/onboarding";
 
 export default function WizardPage() {
-  return <Wizard />;
+  return <OnboardingProvider><Wizard /></OnboardingProvider>;
 }
