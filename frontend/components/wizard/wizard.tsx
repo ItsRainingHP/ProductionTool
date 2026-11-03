@@ -12,6 +12,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Button, Card, Column, Grid, Heading, Icon, Input, ProgressBar, Row, Table, Tag, Text } from "@once-ui-system/core";
 import { AppFooter } from "@/components/app-footer";
 import { AppHeader } from "@/components/app-header";
+import { useTourScreen } from "@/components/onboarding/onboarding";
 import { createJob, deleteJob, finalizeJob, getCapabilities, getJob, getPreview, readyForReview, setMapping, setPleadingSettings, setWorkflow, uploadSource } from "@/lib/api";
 import { clearAdvancedDraft, loadAdvancedDraft, saveAdvancedDraft } from "@/lib/advanced-draft";
 import { defaultOutputFilename, formatBytes, platformConfidenceLabel, platformConfidenceSentence } from "@/lib/format";
@@ -68,7 +69,6 @@ function defaultMapping(job: Job): OutputColumn[] {
   const analysis = job.analysis;
   if (!analysis) return [];
   const columns: OutputColumn[] = [];
-  const assigned = new Set<string>();
   if (analysis.begin_bates_header && analysis.end_bates_header) {
     columns.push({
       id: crypto.randomUUID(),
@@ -77,17 +77,26 @@ function defaultMapping(job: Job): OutputColumn[] {
       transform: { kind: "shorten_bates", delimiter: null },
       normalize: false, replace_true_with_header: false,
     });
-    assigned.add(analysis.begin_bates_header);
-    assigned.add(analysis.end_bates_header);
   }
-  analysis.headers.filter((header) => !assigned.has(header)).slice(0, 5).forEach((header) => {
-    columns.push({ id: crypto.randomUUID(), name: header, source_fields: [header], transform: { kind: "none", delimiter: null }, normalize: false, replace_true_with_header: false });
+  const privilegeFields = ["redact", "withhold"].flatMap((kind) => {
+    const header = analysis.headers.find((field) => {
+      const normalized = field.trim().replace(/^tag\s*:\s*/i, "").replace(/[^a-z0-9]/gi, "").toLowerCase();
+      return normalized === kind || normalized === `privilege${kind}`;
+    });
+    return header ? [header] : [];
+  });
+  columns.push({
+    id: crypto.randomUUID(),
+    name: "Privilege",
+    source_fields: privilegeFields,
+    transform: { kind: "fill", delimiter: null },
+    normalize: false, replace_true_with_header: false,
   });
   return columns;
 }
 
-function Panel({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <Column fillWidth background="surface" border="neutral-alpha-weak" radius="l" padding="24" gap="20" className={className}>{children}</Column>;
+function Panel({ children, className = "", dataTour }: { children: React.ReactNode; className?: string; dataTour?: string }) {
+  return <Column data-tour={dataTour} fillWidth background="surface" border="neutral-alpha-weak" radius="l" padding="24" gap="20" className={className}>{children}</Column>;
 }
 
 function ErrorNotice({ message }: { message: string }) {
@@ -121,6 +130,7 @@ export function Wizard() {
   const [capabilities, setCapabilities] = useState<Capabilities>(DEFAULT_CAPABILITIES);
   const [templates, setTemplates] = useState<MappingTemplate[]>([]);
   const [advancedDirty, setAdvancedDirty] = useState(false);
+  const [mappingDragging, setMappingDragging] = useState(false);
   const [draftStorageUnavailable, setDraftStorageUnavailable] = useState(false);
   const [draftNotice, setDraftNotice] = useState("");
   const [deletionState, setDeletionState] = useState<{ jobId: string; message: string; destination: "/" | "/wizard" } | null>(null);
@@ -502,6 +512,14 @@ export function Wizard() {
   });
   const operationProgress = job && activeJobStatuses.has(job.status) ? job.progress.percent : uploadTransfer.percent;
   const operationPhase = job?.progress.phase || (uploadTransfer.percent < 100 ? "Uploading CSV" : "Preparing analysis");
+  useTourScreen({
+    chapter: step === "advanced" ? (isTextOutput ? "advanced-rfp" : "advanced-privilege") : step,
+    ready: !busy && !uploadSessionActive && step === routeStep && (!routeJobId || routeJobId === job?.job_id) && (step === "upload" ? !routeJobId || Boolean(job)
+      : Boolean(job?.analysis) && (step !== "review" || Boolean(preview)) && (step !== "download" || Boolean(job?.output_stats))),
+    deferAutomatic: step === "advanced" && (advancedDirty || mappingDragging),
+    blocked: isBlocked, advisories: Boolean(job?.analysis?.personal_data_findings.length),
+    maxUpload: formatBytes(capabilities.max_upload_bytes), retentionHours: Math.round(capabilities.job_ttl_seconds / 3600), isTextOutput,
+  });
   return (
     <Column minHeight="100vh" fillWidth>
       <AppHeader />
@@ -552,6 +570,7 @@ export function Wizard() {
                 <Panel className="upload-panel">
                   <Card
                     className="upload-dropzone"
+                    data-tour="upload-csv"
                     role="button"
                     tabIndex={0}
                     aria-label="Choose a CSV file"
@@ -583,13 +602,13 @@ export function Wizard() {
 
             {step === "data" && job?.analysis && (
               <Column gap="24">
-                <Column gap="8">
+                <Column gap="8" data-tour="analysis-summary">
                   <Text variant="label-default-s" onBackground="brand-medium">STEP 2 OF 5</Text>
                   <Heading id="step-title" tabIndex={-1} as="h1" variant="display-strong-s">{isBlocked ? "Review CSV problems" : "Choose the output"}</Heading>
                   <Text variant="body-default-m" onBackground="neutral-weak" className="platform-summary">{isBlocked ? "This CSV was analyzed, but it cannot be processed safely." : platformConfidenceSentence(job.analysis)}</Text>
                   <Text variant="body-default-s" onBackground="neutral-weak">{job.analysis.row_count.toLocaleString()} rows · {job.analysis.column_count.toLocaleString()} columns</Text>
                 </Column>
-                <ValidationResults analysis={job.analysis} detailed={isBlocked} />
+                <ValidationResults analysis={job.analysis} />
                 <PersonalDataNotice findings={job.analysis.personal_data_findings} />
                 {!isBlocked && <WorkflowSelector value={selectedWorkflow} onChange={setSelectedWorkflow} />}
                 <Panel>
@@ -604,7 +623,7 @@ export function Wizard() {
                 <Row fillWidth horizontal="between" s={{ direction: "column", vertical: "stretch" }}>
                   <Button variant="secondary" onClick={() => requestNavigation("upload")}>Previous</Button>
                   {isBlocked
-                    ? <Button variant="danger" prefixIcon="refresh" onClick={() => fileInput.current?.click()}>Choose another CSV</Button>
+                    ? <Button data-tour="replace-csv" variant="danger" prefixIcon="refresh" onClick={() => fileInput.current?.click()}>Choose another CSV</Button>
                     : <Button variant={hasWarnings ? "warning" : "primary"} onClick={confirmWorkflow} disabled={!selectedWorkflow} loading={busy}>{hasWarnings ? "Continue with warnings" : "Continue"}</Button>}
                 </Row>
               </Column>
@@ -625,7 +644,7 @@ export function Wizard() {
                 />
                 {job.workflow === "rfp_ranges" ? (
                   <Column gap="16">
-                    <Grid columns="4" gap="16" m={{ columns: 2 }} s={{ columns: 1 }}>
+                    <Grid data-tour="range-summary" columns="4" gap="16" m={{ columns: 2 }} s={{ columns: 1 }}>
                       {[
                         ["Prefixes", job.analysis.prefixes.length ? job.analysis.prefixes.join(", ") : "None"],
                         ["Requests", job.analysis.request_count.toLocaleString()],
@@ -638,7 +657,7 @@ export function Wizard() {
                 ) : (
                   <Column gap="16">
                     <TemplateManager headers={job.analysis.headers} columns={effectiveMappingColumns} templates={templates} onTemplatesChange={setTemplates} onApply={(columns, missing) => { setMappingColumns(columns); setAdvancedDirty(true); if (missing.length) setError(`Template fields not present in this CSV: ${missing.join(", ")}`); }} onError={setError} />
-                    <MappingEditor jobId={job.job_id} headers={job.analysis.headers} columns={effectiveMappingColumns} onChange={(columns) => { setMappingColumns(columns); setAdvancedDirty(true); }} />
+                    <MappingEditor onDragStateChange={setMappingDragging} jobId={job.job_id} headers={job.analysis.headers} columns={effectiveMappingColumns} onChange={(columns) => { setMappingColumns(columns); setAdvancedDirty(true); }} />
                   </Column>
                 )}
                 {advancedDirty && (
@@ -648,7 +667,7 @@ export function Wizard() {
                     <Button variant="secondary" size="s" onClick={discardAdvancedDraft}>Discard draft</Button>
                   </Row>
                 )}
-                <Row fillWidth horizontal="between" className="wizard-actions"><Button variant="secondary" onClick={() => requestNavigation("data")}>Previous</Button><Button variant={hasWarnings ? "warning" : "primary"} onClick={advanceFromAdvanced} disabled={!canAdvanceIssues || (job.workflow === "privilege_log" && !mappingIsReady)} loading={busy}>Review output</Button></Row>
+                <Row fillWidth horizontal="between" className="wizard-actions"><Button variant="secondary" onClick={() => requestNavigation("data")}>Previous</Button><Button data-tour="review-output" variant={hasWarnings ? "warning" : "primary"} onClick={advanceFromAdvanced} disabled={!canAdvanceIssues || (job.workflow === "privilege_log" && !mappingIsReady)} loading={busy}>Review output</Button></Row>
               </Column>
             )}
 
@@ -660,7 +679,7 @@ export function Wizard() {
                   <Text variant="body-default-m" onBackground="neutral-weak">Confirm the filename and sample data before final processing.</Text>
                 </Column>
                 {hasWarnings && <ValidationResults analysis={job.analysis} detailed={false} />}
-                <Panel>
+                <Panel dataTour="output-name">
                   <Input id="output-filename" label="Output filename" value={outputFilename} onChange={(event) => setOutputFilename(event.target.value.replace(/\.(csv|txt)$/i, ""))} hasSuffix={<Text variant="label-strong-s">{isTextOutput ? ".txt" : ".csv"}</Text>} />
                   <Row gap="8" wrap>
                     <Tag variant="brand">{preview?.total_rows.toLocaleString() ?? "—"} output rows</Tag>
@@ -669,7 +688,7 @@ export function Wizard() {
                   </Row>
                 </Panel>
                 <Panel>
-                  <Row fillWidth horizontal="between" vertical="center"><Heading as="h2" variant="heading-strong-m">Sample output</Heading><Text variant="label-default-s" onBackground="neutral-weak">{isTextOutput ? "First 5,000 characters" : "First five rows"}</Text></Row>
+                  <Row fillWidth horizontal="between" vertical="center"><Heading as="h2" data-tour="sample-output" variant="heading-strong-m">Sample output</Heading><Text variant="label-default-s" onBackground="neutral-weak">{isTextOutput ? "First 5,000 characters" : "First five rows"}</Text></Row>
                   {busy && (
                     <Column gap="8">
                       <ProgressBar value={operationProgress} label />
@@ -682,7 +701,7 @@ export function Wizard() {
                     <div className="table-scroll"><Table fillWidth compact striped data={{ headers: preview.headers.map((header) => ({ content: header, key: header })), rows: preview.rows }} emptyState={<Text>No recoverable output rows.</Text>} /></div>
                   ))}
                 </Panel>
-                <Row fillWidth horizontal="between" className="wizard-actions"><Button variant="secondary" onClick={() => navigate("advanced")} disabled={busy}>Previous</Button>{busy ? <Button variant="danger" onClick={() => void cancelCurrentOperation()}>Cancel processing</Button> : <Button variant={hasWarnings ? "warning" : "success"} onClick={finalize} disabled={!outputFilename.trim()}>{hasWarnings ? "Finalize with warnings" : `Finalize ${isTextOutput ? "text file" : "CSV"}`}</Button>}</Row>
+                <Row fillWidth horizontal="between" className="wizard-actions"><Button variant="secondary" onClick={() => navigate("advanced")} disabled={busy}>Previous</Button>{busy ? <Button variant="danger" onClick={() => void cancelCurrentOperation()}>Cancel processing</Button> : <Button data-tour="finalize-output" variant={hasWarnings ? "warning" : "success"} onClick={finalize} disabled={!outputFilename.trim()}>{hasWarnings ? "Finalize with warnings" : `Finalize ${isTextOutput ? "text file" : "CSV"}`}</Button>}</Row>
               </Column>
             )}
 
@@ -698,10 +717,10 @@ export function Wizard() {
                   <Row fillWidth horizontal="between" vertical="center" s={{ direction: "column", vertical: "stretch" }}>
                     <Column gap="4"><Heading as="h2" variant="heading-strong-m">{job.output_filename}</Heading><Text variant="body-default-s" onBackground="neutral-weak">{formatBytes(job.output_stats.output_size_bytes)} · {job.output_stats.output_rows.toLocaleString()} rows</Text></Column>
                     <Row gap="8" wrap>
-                      <Button href={`/api/v1/jobs/${job.job_id}/download`} prefixIcon="download" size="l">Download {isTextOutput ? "text file" : "CSV"}</Button>
+                      <Button data-tour="download-file" href={`/api/v1/jobs/${job.job_id}/download`} prefixIcon="download" size="l">Download {isTextOutput ? "text file" : "CSV"}</Button>
                       <Button href={`/api/v1/jobs/${job.job_id}/receipt.json`} variant="secondary">JSON receipt</Button>
                       <Button href={`/api/v1/jobs/${job.job_id}/receipt.txt`} variant="secondary">Text receipt</Button>
-                      <Button href={`/api/v1/jobs/${job.job_id}/evidence.zip`} variant="secondary">Evidence package</Button>
+                      <Button data-tour="download-evidence" href={`/api/v1/jobs/${job.job_id}/evidence.zip`} variant="secondary">Evidence package</Button>
                     </Row>
                   </Row>
                   <Grid columns="4" gap="16" m={{ columns: 2 }} s={{ columns: 1 }}>
@@ -713,7 +732,7 @@ export function Wizard() {
                     ].map(([label, value]) => <Column key={label} gap="4" padding="16" radius="m" background="neutral-alpha-weak"><Text variant="label-default-xs" onBackground="neutral-weak">{label.toUpperCase()}</Text><Text variant="heading-strong-s">{value}</Text></Column>)}
                   </Grid>
                 </Panel>
-                <Row fillWidth horizontal="between" s={{ direction: "column" }}><Button variant="secondary" onClick={() => startAgain(false)} prefixIcon="refresh">Process another CSV</Button><Button variant="tertiary" onClick={() => startAgain(true)}>Finish</Button></Row>
+                <Row data-tour="finish-workspace" fillWidth horizontal="between" s={{ direction: "column" }}><Button variant="secondary" onClick={() => startAgain(false)} prefixIcon="refresh">Process another CSV</Button><Button variant="tertiary" onClick={() => startAgain(true)}>Finish</Button></Row>
               </Column>
             )}
           </div>

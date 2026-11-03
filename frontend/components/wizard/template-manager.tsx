@@ -26,7 +26,7 @@ export function TemplateManager({ headers, columns, templates, onTemplatesChange
   };
   return (
     <Column gap="12" padding="16" radius="m" background="neutral-alpha-weak" className="template-manager">
-      <Heading as="h3" variant="heading-strong-s">Mapping templates</Heading>
+      <Heading as="h3" data-tour="mapping-templates" variant="heading-strong-s">Mapping templates</Heading>
       <Text variant="body-default-xs" onBackground="neutral-weak">Templates stay in this browser and contain field mappings only.</Text>
       <input ref={fileInput} className="visually-hidden" type="file" accept="application/json,.json" aria-label="Import mapping templates" onChange={async (event) => {
         const file = event.currentTarget.files?.[0]; event.currentTarget.value = ""; if (!file) return;

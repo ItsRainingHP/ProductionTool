@@ -55,6 +55,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** System Status */
+        get: operations["system_status_api_v1_system_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/jobs": {
         parameters: {
             query?: never;
@@ -658,6 +675,15 @@ export interface components {
             /** Acknowledged Issue Codes */
             acknowledged_issue_codes?: string[];
         };
+        /** SystemStatus */
+        SystemStatus: {
+            /** Current Version */
+            current_version: string;
+            /** Latest Version */
+            latest_version: string | null;
+            /** Update Available */
+            update_available: boolean;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -744,6 +770,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Capabilities"];
+                };
+            };
+        };
+    };
+    system_status_api_v1_system_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemStatus"];
                 };
             };
         };

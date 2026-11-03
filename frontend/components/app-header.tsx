@@ -8,6 +8,8 @@
 "use client";
 
 import { Column, Heading, Row, SmartLink, Text, ThemeSwitcher } from "@once-ui-system/core";
+import { HeaderSymbol } from "./header-symbol";
+import { TourHelp } from "./onboarding/onboarding";
 
 export function AppHeader() {
   return (
@@ -22,16 +24,14 @@ export function AppHeader() {
       <Row fillWidth maxWidth="l" horizontal="between" vertical="center" paddingX="24" paddingY="16">
         <SmartLink href="/" unstyled>
           <Row gap="12" vertical="center">
-            <Row center width="40" height="40" radius="m" background="brand-alpha-weak" border="brand-alpha-medium">
-              <Text variant="heading-strong-s" onBackground="brand-strong">P</Text>
-            </Row>
+            <HeaderSymbol>P</HeaderSymbol>
             <Column gap="0">
               <Heading as="span" variant="heading-strong-s">Production Tool</Heading>
               <Text variant="label-default-xs" onBackground="neutral-weak">Discovery CSV workspace</Text>
             </Column>
           </Row>
         </SmartLink>
-        <ThemeSwitcher />
+        <Row gap="8" vertical="center" className="app-header-actions"><TourHelp /><ThemeSwitcher /></Row>
       </Row>
     </Column>
   );

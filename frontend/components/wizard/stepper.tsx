@@ -20,7 +20,7 @@ export type StepKey = (typeof steps)[number]["key"];
 export function Stepper({ active, onNavigate }: { active: StepKey; onNavigate: (step: StepKey) => void }) {
   const activeIndex = steps.findIndex((step) => step.key === active);
   return (
-    <Row as="nav" aria-label="Production steps" fillWidth horizontal="center" className="stepper" overflowX="auto">
+    <Row as="nav" aria-label="Production steps" data-tour="processing-steps" fillWidth horizontal="center" className="stepper" overflowX="auto">
       {steps.map((step, index) => {
         const complete = index < activeIndex;
         const current = index === activeIndex;

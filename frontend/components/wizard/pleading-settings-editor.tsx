@@ -28,11 +28,11 @@ type PleadingSettingsEditorProps = {
 export function PleadingSettingsEditor({ settings, onChange }: PleadingSettingsEditorProps) {
   return (
     <Column fillWidth background="surface" border="neutral-alpha-weak" radius="l" padding="24" gap="16">
-      <Column gap="4">
+      <Column gap="4" data-tour="text-formatting">
         <Heading as="h2" variant="heading-strong-m">Text formatting</Heading>
         <Text variant="body-default-s" onBackground="neutral-weak">Choose how Bates ranges are separated beneath each RFP heading.</Text>
       </Column>
-      <Column gap="8">
+      <Column gap="8" data-tour="text-delimiter">
         <Text variant="label-strong-s">Delimiter</Text>
         <Row gap="8" wrap>
           {DELIMITERS.map((delimiter) => (
@@ -48,11 +48,11 @@ export function PleadingSettingsEditor({ settings, onChange }: PleadingSettingsE
           ))}
         </Row>
       </Column>
-      <Checkbox
+      <div data-tour="text-conjunction"><Checkbox
         label="Include ‘and’ before the final range"
         isChecked={settings.include_and}
         onToggle={() => onChange({ ...settings, include_and: !settings.include_and })}
-      />
+      /></div>
     </Column>
   );
 }

@@ -9,8 +9,12 @@ import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { createHash } from "node:crypto";
 
 const fixtures = path.resolve(__dirname, "../../examples");
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("production-tool.onboarding.v1", JSON.stringify({ schemaVersion: 1, preference: "skipped", chapters: {} })));
+});
 const trueEvidence = path.resolve(process.env.TRUE_REPLACEMENT_ARTIFACT_DIR
   ?? path.resolve(__dirname, "../../artifacts/per-column-true/browser"));
 
@@ -98,11 +102,103 @@ test("Advanced draft survives browser Back, Forward, and refresh in one tab", as
   await expect(page.getByRole("button", { name: "Comma" })).toHaveAttribute("aria-pressed", "true");
 });
 
+for (const workflow of ["rfp_ranges", "privilege_log"] as const) {
+  test(`${workflow} shows Bates-only rows on Data and requires acknowledgment before output`, async ({ page, request }) => {
+    const evidence = path.resolve(__dirname, "../../artifacts/bates-only-warning");
+    const source = [
+      ["Begin Bates", "End Bates", "Tag: RFP 01", "Redact", "Withhold", "Subject"],
+      ["ABC0001", "ABC0002", "TRUE", "Redact", "", "Populated subject"],
+      ["ABC0003", "ABC0004", "", "", "", ""],
+      ["ABC0005", "ABC0006", " ", "\t", " ", " "],
+    ].map((row) => row.join(",")).join("\r\n") + "\r\n";
+    await page.setViewportSize({ width: 1440, height: 1100 });
+    await page.goto("/wizard");
+    await page.locator('input[type="file"]').setInputFiles({ name: "bates-only.csv", mimeType: "text/csv", buffer: Buffer.from(source) });
+    await expect(page).toHaveURL(/\/data$/);
+    await expect(page.getByText(/Begin and End Bates values but no data/)).toBeVisible();
+    await expect(page.getByText(/First affected row: 3/)).toContainText("2 occurrences");
+    await expect(page.getByRole("checkbox", { name: /understand how this issue affects/ })).toHaveCount(0);
+    const jobId = page.url().split("/").at(-2)!;
+    await page.reload();
+    await expect(page.getByText(/Begin and End Bates values but no data/)).toBeVisible();
+    await page.getByRole("radio", { name: workflow === "privilege_log" ? /Privilege Log/ : /RFP \/ Pleading/ }).click();
+    await mkdir(evidence, { recursive: true });
+    await page.screenshot({ path: path.join(evidence, `${workflow}-data.png`), fullPage: true, animations: "disabled" });
+    if (workflow === "privilege_log") {
+      await page.setViewportSize({ width: 390, height: 1000 });
+      await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await page.screenshot({ path: path.join(evidence, "privilege-data-mobile.png"), fullPage: true, animations: "disabled" });
+      await page.setViewportSize({ width: 1440, height: 1100 });
+    }
+    await page.getByRole("button", { name: "Continue with warnings" }).click();
+    await expect(page).toHaveURL(/\/advanced$/);
+    await expect(page.getByRole("button", { name: "Review output" })).toBeDisabled();
+    await page.getByRole("checkbox", { name: /understand how this issue affects/ }).check();
+    await page.getByRole("button", { name: "Review output" }).click();
+    await expect(page).toHaveURL(/\/review$/);
+    await page.getByRole("button", { name: "Finalize with warnings" }).click();
+    await expect(page).toHaveURL(/\/download$/);
+    const output = await downloadText(page, workflow === "privilege_log" ? /Download CSV/ : /Download text file/);
+    expect(output).toBe(workflow === "privilege_log"
+      ? "\ufeffBates Range,Privilege\r\nABC0001-2,Redact\r\nABC0003-4,\r\nABC0005-6,\r\n"
+      : "RFP 01\r\nABC0001-2\r\n");
+    const receipt = await (await request.get(`/api/v1/jobs/${jobId}/receipt.json`)).json();
+    expect(receipt.issue_counts).toEqual({ bates_only_row: 2 });
+    expect(receipt.acknowledged_issue_codes).toEqual(["bates_only_row"]);
+    expect(receipt.input_sha256).toBe(createHash("sha256").update(source).digest("hex"));
+    await writeFile(path.join(evidence, `${workflow}-output.${workflow === "privilege_log" ? "csv" : "txt"}`), output);
+    await writeFile(path.join(evidence, `${workflow}-receipt.json`), JSON.stringify(receipt, null, 2));
+  });
+}
+
+test("privilege defaults use only Bates Range and Redact/Withhold Fill through download", async ({ page, request }) => {
+  const evidence = path.resolve(__dirname, "../../artifacts/privilege-defaults");
+  const headers = ["Begin Bates num from SYNTHETIC_PROD_001", "End Bates num from SYNTHETIC_PROD_001",
+    "Date", "File Name", "Email From", "Email To", "Email CC", "Email BCC", "Email Subject",
+    "Tag: Privilege - Withhold", "Tag: Privilege - Redact", "Tag: Attorney-Client"];
+  const source = [headers,
+    ["ABC000001", "ABC000003", "", "first.pdf", "", "", "", "", "Unused subject", "", "Redact", "Yes"],
+    ["ABC000004", "ABC000004", "", "second.pdf", "", "", "", "", "", "Withhold", "", ""],
+    ["ABC000005", "ABC000006", "", "third.pdf", "", "", "", "", "", "Withhold", "Redact", ""],
+    ["ABC000007", "ABC000007", "", "fourth.pdf", "", "", "", "", "", "", "", ""],
+  ].map((row) => row.join(",")).join("\r\n") + "\r\n";
+  await page.setViewportSize({ width: 1600, height: 1100 });
+  await page.goto("/wizard");
+  await page.locator('input[type="file"]').setInputFiles({ name: "privilege-defaults.csv", mimeType: "text/csv", buffer: Buffer.from(source) });
+  await expect(page).toHaveURL(/\/data$/);
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page).toHaveURL(/\/advanced$/);
+  await expect(page.getByLabel("Output column 1", { exact: true })).toHaveValue("Bates Range");
+  await expect(page.getByLabel("Output column 2", { exact: true })).toHaveValue("Privilege");
+  await expect(page.getByLabel("Output column 3", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("group", { name: "Transform for Privilege", exact: true }).getByRole("button", { name: "Fill", exact: true })).toHaveAttribute("aria-pressed", "true");
+  const jobId = page.url().split("/").at(-2)!;
+  await page.reload();
+  await expect(page.getByLabel("Output column 2", { exact: true })).toHaveValue("Privilege");
+  await mkdir(evidence, { recursive: true });
+  await page.screenshot({ path: path.join(evidence, "mapping.png"), fullPage: true, animations: "disabled" });
+  await page.getByRole("button", { name: "Review output" }).click();
+  await expect(page.getByRole("heading", { name: "Review your output" })).toBeVisible();
+  const job = await (await request.get(`/api/v1/jobs/${jobId}`)).json();
+  expect(job.mapping.columns).toEqual([
+    expect.objectContaining({ name: "Bates Range", source_fields: headers.slice(0, 2), transform: { kind: "shorten_bates", delimiter: null } }),
+    expect.objectContaining({ name: "Privilege", source_fields: ["Tag: Privilege - Redact", "Tag: Privilege - Withhold"], transform: { kind: "fill", delimiter: null } }),
+  ]);
+  await page.getByRole("button", { name: "Finalize CSV" }).click();
+  await expect(page.getByRole("heading", { name: "Your CSV is ready" })).toBeVisible();
+  const text = await downloadText(page, /Download CSV/);
+  expect(text).toBe("\ufeffBates Range,Privilege\r\nABC000001-3,Redact\r\nABC000004,Withhold\r\nABC000005-6,Redact\r\nABC000007,\r\n");
+  await writeFile(path.join(evidence, "output.csv"), text);
+  await writeFile(path.join(evidence, "mapping.json"), JSON.stringify(job.mapping, null, 2));
+});
+
 test("privilege wizard produces a spreadsheet-safe CSV", async ({ page }) => {
   await upload(page, "reference-sanitized/logikcull/privilege/valid/lc_reference_privilege_001.csv");
   await expect(page.getByRole("heading", { name: "Choose the output" })).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByRole("heading", { name: "Build privilege output" })).toBeVisible();
+  await page.locator(".source-chip").filter({ has: page.locator(".source-name", { hasText: /^Privilege$/ }) }).click();
+  await page.locator(".mapping-column-card").filter({ has: page.getByLabel("Output column 2", { exact: true }) }).getByRole("button", { name: "Add Privilege here", exact: true }).click();
   await page.getByRole("button", { name: "Review output" }).click();
   await expect(page.getByRole("heading", { name: "Review your output" })).toBeVisible();
   await page.getByRole("button", { name: "Finalize CSV" }).click();
@@ -111,6 +207,170 @@ test("privilege wizard produces a spreadsheet-safe CSV", async ({ page }) => {
   expect(text.charCodeAt(0)).toBe(0xfeff);
   expect(text).toContain("Bates Range");
   expect(text).toContain("SYNREFLCPRV001-0000001");
+});
+
+for (const theme of ["light", "dark"] as const) {
+  test(`privilege source drag follows the mouse and persists exact output in ${theme} theme`, async ({ page, request }) => {
+    test.setTimeout(120_000);
+    const field = "Author with a deliberately long source heading for privilege document metadata";
+    await page.setViewportSize({ width: 1600, height: 1200 });
+    await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+    await page.goto("/wizard");
+    await page.getByLabel("Upload source CSV").setInputFiles({ name: "drag-preview.csv", mimeType: "text/csv",
+      buffer: Buffer.from(`Begin Bates,End Bates,${field},Subject\nABC000001,ABC000002,Alice,Example\n`) });
+    await expect(page).toHaveURL(/\/data$/);
+    const jobId = page.url().split("/").at(-2)!;
+    try {
+      await page.getByRole("radio", { name: /Privilege Log/ }).click();
+      await page.getByRole("button", { name: "Continue", exact: true }).click();
+      await expect(page).toHaveURL(/\/advanced$/);
+      const chip = page.locator(".source-palette .source-chip").filter({ has: page.locator(".source-name", { hasText: field }) });
+      const targets = page.locator(".mapping-fields");
+      const dragTo = async (targetIndex: number, screenshot = false) => {
+        const target = targets.nth(targetIndex);
+        await target.scrollIntoViewIfNeeded();
+        await chip.scrollIntoViewIfNeeded();
+        const origin = (await chip.boundingBox())!;
+        const start = { x: origin.x + 20, y: origin.y + 12 };
+        await page.mouse.move(start.x, start.y);
+        await page.mouse.down();
+        await expect(page.locator(".drag-overlay")).toBeVisible();
+        await page.mouse.move(start.x + 3, start.y + 4);
+        await expect(page.locator(".drag-overlay")).toBeVisible();
+        for (const offset of [{ x: 60, y: 20 }, { x: 160, y: 50 }]) {
+          await page.mouse.move(start.x + offset.x, start.y + offset.y, { steps: 5 });
+          const ghost = page.locator(".drag-overlay");
+          await expect(ghost).toBeVisible();
+          await expect(ghost).toHaveAttribute("aria-hidden", "true");
+          await expect(ghost).toHaveCSS("pointer-events", "none");
+          await expect(ghost.locator(".source-name")).toHaveCSS("white-space", "normal");
+          expect(await ghost.evaluate((element) => element.parentElement === document.body)).toBe(true);
+          expect(await ghost.evaluate((element) => getComputedStyle(element).backgroundColor))
+            .toBe(await page.locator("html").evaluate((element) => getComputedStyle(element).backgroundColor));
+          await expect.poll(async () => Math.abs((await ghost.boundingBox())!.x - (origin.x + offset.x))).toBeLessThan(2);
+          await expect.poll(async () => Math.abs((await ghost.boundingBox())!.y - (origin.y + offset.y))).toBeLessThan(2);
+          expect(Math.abs((await ghost.boundingBox())!.width - origin.width)).toBeLessThan(2);
+          await expect(chip).toHaveClass(/is-dragging/);
+        }
+        if (screenshot) {
+          const beforeWheel = (await page.locator(".drag-overlay").boundingBox())!;
+          await page.mouse.wheel(0, 70);
+          await expect.poll(async () => Math.abs((await page.locator(".drag-overlay").boundingBox())!.y - beforeWheel.y)).toBeLessThan(2);
+        }
+        const destination = (await target.boundingBox())!;
+        await page.mouse.move(destination.x + 35, destination.y + 25, { steps: 10 });
+        await expect(target).toHaveClass(/is-over/);
+        await expect(target).toHaveClass(/is-active/);
+        if (screenshot) {
+          const directory = path.resolve(__dirname, "../../artifacts/source-drag/browser");
+          await mkdir(directory, { recursive: true });
+          await page.screenshot({ path: path.join(directory, `drag-${theme}.png`), animations: "disabled" });
+        }
+        await page.mouse.up();
+        await expect(page.locator(".drag-overlay")).toHaveCount(0);
+        await expect(chip).not.toHaveClass(/is-dragging/);
+      };
+      await dragTo(1, true);
+      await expect(targets.nth(1).locator(".mapping-field-row")).toHaveCount(1);
+      // Dropping onto the nested source-priority content must not duplicate the assignment.
+      await dragTo(1);
+      await expect(targets.nth(1).locator(".mapping-field-row")).toHaveCount(1);
+      await expect(chip.locator(".source-count")).toHaveText("1");
+
+      // Cancellation leaves both mapping and click/keyboard selection usable.
+      const origin = (await chip.boundingBox())!;
+      await page.mouse.move(origin.x + 20, origin.y + 12); await page.mouse.down();
+      await page.mouse.move(origin.x + 100, origin.y + 70, { steps: 5 });
+      await expect(page.locator(".drag-overlay")).toBeVisible();
+      await page.keyboard.press("Escape"); await page.mouse.up();
+      await expect(page.locator(".drag-overlay")).toHaveCount(0);
+      await expect(targets.nth(1).locator(".mapping-field-row")).toHaveCount(1);
+      await page.getByRole("button", { name: "Add another empty output column" }).click();
+      await chip.focus(); await page.keyboard.press("Enter");
+      await targets.nth(2).getByRole("button", { name: `Add ${field} here`, exact: true }).click();
+      await expect(chip.locator(".source-count")).toHaveText("2");
+      await page.getByRole("button", { name: "Review output", exact: true }).click();
+      await expect(page).toHaveURL(/\/review$/);
+      await page.reload();
+      const preview = await (await request.get(`/api/v1/jobs/${jobId}/preview`)).json();
+      expect(preview.rows).toEqual([["ABC000001-2", "Alice", "Alice"]]);
+      const mapping = (await (await request.get(`/api/v1/jobs/${jobId}`)).json()).mapping;
+      expect(mapping.columns.map((column: { transform: { kind: string } }) => column.transform.kind)).toEqual(["shorten_bates", "fill", "none"]);
+      expect(mapping.columns.slice(1).map((column: { source_fields: string[] }) => column.source_fields)).toEqual([[field], [field]]);
+      await page.getByRole("button", { name: "Finalize CSV", exact: true }).click();
+      await expect(page).toHaveURL(/\/download$/);
+      expect(await downloadText(page, /Download CSV/)).toBe("\ufeffBates Range,Privilege,Output column 3\r\nABC000001-2,Alice,Alice\r\n");
+    } finally { await request.delete(`/api/v1/jobs/${jobId}`); }
+  });
+}
+
+test("Bcc visibly lifts on click-hold inside a scrolled source list and follows the mouse outside it", async ({ page, request }) => {
+  const evidence = path.resolve(__dirname, "../../artifacts/source-drag-feedback");
+  await mkdir(evidence, { recursive: true });
+  await page.setViewportSize({ width: 1600, height: 1100 });
+  await page.emulateMedia({ colorScheme: "dark" });
+  const headers = ["Begin Bates", "End Bates", ...Array.from({ length: 24 }, (_, i) => `Metadata ${i + 1}`), "Author", "Bcc", "Cc"];
+  const row = ["ABC000001", "ABC000002", ...Array.from({ length: 24 }, (_, i) => `Example ${i + 1}`), "Alice", "Hidden recipient", "Copy recipient"];
+  await page.goto("/wizard");
+  await page.getByLabel("Upload source CSV").setInputFiles({ name: "bcc-feedback.csv", mimeType: "text/csv", buffer: Buffer.from(`${headers.join(",")}\n${row.join(",")}\n`) });
+  await expect(page).toHaveURL(/\/data$/);
+  const jobId = page.url().split("/").at(-2)!;
+  try {
+    await page.getByRole("radio", { name: /Privilege Log/ }).click();
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
+    await expect(page).toHaveURL(/\/advanced$/);
+    const chip = page.locator(".source-palette .source-chip").filter({ has: page.locator(".source-name", { hasText: /^Bcc$/ }) });
+    await chip.scrollIntoViewIfNeeded();
+    expect(await page.locator(".source-list").evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+    const origin = (await chip.boundingBox())!;
+    await page.mouse.move(origin.x + 40, origin.y + 20);
+    await page.mouse.down();
+    const ghost = page.locator(".drag-overlay");
+    await expect(ghost).toBeVisible();
+    await expect(ghost.locator(".source-name")).toHaveText("Bcc");
+    await expect(chip).toHaveClass(/is-dragging/);
+    await page.screenshot({ path: path.join(evidence, "bcc-held.png"), animations: "disabled" });
+    await page.mouse.move(origin.x + origin.width + 60, origin.y + 80, { steps: 12 });
+    await expect.poll(async () => Math.abs((await ghost.boundingBox())!.x - (origin.x + origin.width + 20))).toBeLessThan(2);
+    expect(await ghost.evaluate((element) => element.parentElement === document.body)).toBe(true);
+    await page.screenshot({ path: path.join(evidence, "bcc-following.png"), animations: "disabled" });
+    const target = page.locator(".mapping-fields").nth(1);
+    await target.scrollIntoViewIfNeeded();
+    const destination = (await target.boundingBox())!;
+    await page.mouse.move(destination.x + 35, destination.y + 25, { steps: 12 });
+    await expect(target).toHaveClass(/is-over/);
+    await page.mouse.up();
+    await expect(ghost).toHaveCount(0);
+    await expect(target.locator(".mapping-field-row")).toHaveText(/Bcc/);
+    await expect(chip.locator(".source-count")).toHaveText("1");
+    await page.getByRole("button", { name: "Review output", exact: true }).click();
+    await expect(page).toHaveURL(/\/review$/);
+    expect((await (await request.get(`/api/v1/jobs/${jobId}/preview`)).json()).rows).toEqual([["ABC000001-2", "Hidden recipient"]]);
+  } finally { await request.delete(`/api/v1/jobs/${jobId}`); }
+});
+
+test("touch users can still tap a source and add it without a drag preview", async ({ browser, baseURL }) => {
+  const context = await browser.newContext({ baseURL, hasTouch: true, viewport: { width: 390, height: 844 } });
+  await context.addInitScript(() => localStorage.setItem("production-tool.onboarding.v1", JSON.stringify({ schemaVersion: 1, preference: "skipped", chapters: {} })));
+  const page = await context.newPage();
+  let jobId: string | undefined;
+  try {
+    await page.goto("/wizard");
+    await page.getByLabel("Upload source CSV").setInputFiles({ name: "touch-mapping.csv", mimeType: "text/csv",
+      buffer: Buffer.from("Begin Bates,End Bates,Author\nABC000001,ABC000002,Alice\n") });
+    await expect(page).toHaveURL(/\/data$/); jobId = page.url().split("/").at(-2)!;
+    await page.getByRole("radio", { name: /Privilege Log/ }).tap();
+    await page.getByRole("button", { name: "Continue", exact: true }).tap();
+    const chip = page.locator(".source-palette .source-chip").filter({ has: page.locator(".source-name", { hasText: /^Author$/ }) });
+    await chip.tap();
+    await expect(page.locator(".drag-overlay")).toHaveCount(0);
+    await page.locator(".mapping-fields").nth(1).getByRole("button", { name: "Add Author here", exact: true }).tap();
+    await expect(page.locator(".mapping-fields").nth(1).locator(".mapping-field-row")).toHaveText(/Author/);
+    await expect(chip.locator(".source-count")).toHaveText("1");
+  } finally {
+    if (jobId) await context.request.delete(`/api/v1/jobs/${jobId}`);
+    await context.close();
+  }
 });
 
 for (const platform of ["logikcull", "everlaw", "unknown"] as const) {
@@ -135,6 +395,18 @@ for (const enabled of [true, false]) {
     });
     await page.getByRole("button", { name: "Continue" }).click();
     await expect(page).toHaveURL(/\/advanced$/, { timeout: 15_000 });
+    // This scenario needs four specific columns; do not depend on editor defaults.
+    const mappingJobId = new URL(page.url()).pathname.split("/")[2];
+    const configuredJob = await (await request.get(`/api/v1/jobs/${mappingJobId}`)).json();
+    const columns = [
+      { id: "bates", name: "Bates Range", source_fields: [configuredJob.analysis.begin_bates_header, configuredJob.analysis.end_bates_header],
+        transform: { kind: "shorten_bates", delimiter: null }, normalize: false, replace_true_with_header: false },
+      ...["Subject", "Tag: Attorney Client", "Tag: Work Product"].map((field, index) => ({
+        id: `field-${index}`, name: field, source_fields: [field], transform: { kind: "none", delimiter: null }, normalize: false, replace_true_with_header: false,
+      })),
+    ];
+    expect((await request.put(`/api/v1/jobs/${mappingJobId}/mapping`, { data: { columns } })).status()).toBe(200);
+    await page.reload();
     await page.waitForLoadState("networkidle");
     const checkbox = page.locator(".mapping-column-card").nth(2).getByRole("checkbox", { name: "Replace TRUE cells with source headings" });
     const secondFlag = page.locator(".mapping-column-card").nth(3).getByRole("checkbox", { name: "Replace TRUE cells with source headings" });

@@ -5,7 +5,7 @@
  * @license MIT
  */
 
-import type { Capabilities, Job, MappingBlankReport, MappingConfig, PleadingSettings, Preview, Workflow } from "./types";
+import type { Capabilities, Job, MappingBlankReport, MappingConfig, PleadingSettings, Preview, SystemStatus, Workflow } from "./types";
 
 const SERVICE_MESSAGE = "The production service could not be reached or returned an unexpected response. Check your private-network connection and try again, or contact the service operator.";
 const ACCESS_MESSAGE = "Access was denied. Check your approved private-network connection or contact the service operator.";
@@ -52,6 +52,7 @@ export async function createJob(signal?: AbortSignal): Promise<{ job_id: string;
 }
 
 export const getCapabilities = () => request<Capabilities>("/api/v1/capabilities");
+export const getSystemStatus = (signal?: AbortSignal) => request<SystemStatus>("/api/v1/system-status", { signal });
 
 export interface UploadTransferProgress {
   loaded: number;

@@ -419,6 +419,11 @@ def _make_issue(code: str, *, row: int | None = None, column: str | None = None)
         "missing_end_bates_column": "An End Bates column was not found.",
         "blank_begin_bates": "One or more rows have a blank Begin Bates value.",
         "blank_end_bates": "One or more rows have a blank End Bates value.",
+        "bates_only_row": (
+            "One or more rows contain Begin and End Bates values but no data in any other column. "
+            "Check the source export for missing tags or metadata. These rows remain in privilege output "
+            "with blank details and are omitted from RFP output without an assigned request."
+        ),
         "malformed_bates": "One or more Bates values cannot be parsed.",
         "reversed_range": "One or more Bates ranges end before they begin.",
         "prefix_mismatch": "One or more Bates ranges use different begin and end prefixes.",
@@ -430,6 +435,7 @@ def _make_issue(code: str, *, row: int | None = None, column: str | None = None)
         "uneven_row_width",
         "blank_begin_bates",
         "blank_end_bates",
+        "bates_only_row",
         "malformed_bates",
         "reversed_range",
         "prefix_mismatch",
@@ -542,6 +548,8 @@ def analyze_csv(
                     record_issue(_make_issue("duplicate_header", column="columns " + ", ".join(map(str, positions))))
             begin_indices = [i for i, value in enumerate(headers) if is_begin_header(value)]
             end_indices = [i for i, value in enumerate(headers) if is_end_header(value)]
+            bates_indices = set(begin_indices + end_indices)
+            non_bates_indices = [index for index in range(len(headers)) if index not in bates_indices]
             for index, header in enumerate(headers):
                 if normalize_header(header) == "rfp":
                     combined_rfp_index = index
@@ -582,6 +590,10 @@ def analyze_csv(
                     record_issue(_make_issue("blank_end_bates", row=row_number, column=headers[end_indices[0]]))
                 if not begin_raw or not end_raw:
                     continue
+                if len(begin_indices) == len(end_indices) == 1 and not any(
+                    row[index].strip() for index in non_bates_indices
+                ):
+                    record_issue(_make_issue("bates_only_row", row=row_number))
                 begin_match = BATES_PATTERN.match(begin_raw)
                 end_match = BATES_PATTERN.match(end_raw)
                 if begin_match and end_match and (len(begin_match.group(2)) > 18 or len(end_match.group(2)) > 18):

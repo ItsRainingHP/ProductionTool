@@ -6,6 +6,9 @@ import path from "node:path";
 import type { OutputColumn } from "../lib/types";
 
 const root = path.resolve(__dirname, "../..");
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("production-tool.onboarding.v1", JSON.stringify({ schemaVersion: 1, preference: "skipped", chapters: {} })));
+});
 const evidenceRoot = path.resolve(process.env.OUTPUT_STRESS_ARTIFACT_DIR ?? path.join(root, "artifacts/output-stress-validation"));
 type StressCase = {
   id: string;

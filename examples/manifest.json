@@ -141,8 +141,10 @@
       "lineEnding": "CRLF",
       "rfpLayout": "combined",
       "batesProfile": "synthetic SYN prefix with zero-padded numeric suffix",
-      "expectedStatus": "valid",
-      "expectedErrors": [],
+      "expectedStatus": "validation_error",
+      "expectedErrors": [
+        "bates_only_row"
+      ],
       "expectedRfpRanges": {
         "RFP 01": [
           {
@@ -152,7 +154,7 @@
         ]
       },
       "expectedWizard": {
-        "outcome": "complete",
+        "outcome": "complete_with_warnings",
         "outputRows": 1,
         "outputCells": 2,
         "outputSizeBytes": 29,
@@ -136060,8 +136062,10 @@
       "lineEnding": "CRLF",
       "rfpLayout": "combined",
       "batesProfile": "synthetic SYN prefix with zero-padded numeric suffix",
-      "expectedStatus": "valid",
-      "expectedErrors": [],
+      "expectedStatus": "validation_error",
+      "expectedErrors": [
+        "bates_only_row"
+      ],
       "expectedRfpRanges": {
         "RFP 01": [
           {
@@ -136071,7 +136075,7 @@
         ]
       },
       "expectedWizard": {
-        "outcome": "complete",
+        "outcome": "complete_with_warnings",
         "outputRows": 1,
         "outputCells": 2,
         "outputSizeBytes": 29,
@@ -271186,11 +271190,13 @@
       "lineEnding": "CRLF",
       "rfpLayout": null,
       "batesProfile": "synthetic SYN prefix with zero-padded numeric suffix",
-      "expectedStatus": "valid",
-      "expectedErrors": [],
+      "expectedStatus": "validation_error",
+      "expectedErrors": [
+        "bates_only_row"
+      ],
       "expectedRfpRanges": {},
       "expectedWizard": {
-        "outcome": "complete",
+        "outcome": "complete_with_warnings",
         "outputRows": 5,
         "outputCells": 30,
         "outputSizeBytes": 303,
@@ -273276,11 +273282,13 @@
       "lineEnding": "CRLF",
       "rfpLayout": null,
       "batesProfile": "synthetic SYN prefix with zero-padded numeric suffix",
-      "expectedStatus": "valid",
-      "expectedErrors": [],
+      "expectedStatus": "validation_error",
+      "expectedErrors": [
+        "bates_only_row"
+      ],
       "expectedRfpRanges": {},
       "expectedWizard": {
-        "outcome": "complete",
+        "outcome": "complete_with_warnings",
         "outputRows": 16,
         "outputCells": 96,
         "outputSizeBytes": 890,
@@ -273902,8 +273910,8 @@
     "fixtures": 118,
     "inputRows": 186387,
     "processable": 85,
-    "clean": 77,
-    "withWarnings": 8,
+    "clean": 73,
+    "withWarnings": 12,
     "blocked": 33,
     "pleadingOutputs": 42,
     "privilegeOutputs": 43,

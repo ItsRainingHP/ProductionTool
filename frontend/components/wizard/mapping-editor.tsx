@@ -7,7 +7,9 @@
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type PointerEvent, type MouseEvent, type DragEvent } from "react";
+import { createPortal } from "react-dom";
+import { useSourceDrag } from "./use-source-drag";
 import { Button, Checkbox, Column, Heading, Input, Row, Tag, Text } from "@once-ui-system/core";
 import { inspectMappingBlanks } from "@/lib/api";
 import type { MappingBlankReport, MappingConfig, OutputColumn, TransformKind } from "@/lib/types";
@@ -41,50 +43,35 @@ function validTransform(transform: OutputColumn["transform"], fieldCount: number
   return true;
 }
 
-function SourceField({ field, selected, usedCount, onSelect, onBeginDrag }: { field: string; selected: boolean; usedCount: number; onSelect: () => void; onBeginDrag: () => void }) {
-  return (
-    <Button
-      type="button"
-      variant="secondary"
-      size="s"
-      fillWidth
-      horizontal="start"
-      className={`source-chip ${selected ? "is-selected" : ""}`}
-      onClick={onSelect}
-      onMouseDown={onBeginDrag}
-      onTouchStart={onBeginDrag}
-      aria-pressed={selected}
-    >
-      <span className={`source-count ${usedCount ? "is-used" : ""}`} aria-label={usedCount ? `Used in ${usedCount} output columns` : "Unused"}>
-        {usedCount || "+"}
-      </span>
-      <span className="source-name">{field}</span>
-      <span className="source-grip" aria-hidden>⋮⋮</span>
-    </Button>
-  );
+function SourceContent({ field, usedCount }: { field: string; usedCount: number }) {
+  return <>
+    <span className={`source-count ${usedCount ? "is-used" : ""}`} aria-label={usedCount ? `Used in ${usedCount} output columns` : "Unused"}>{usedCount || "+"}</span>
+    <span className="source-name">{field}</span>
+    <span className="source-grip" aria-hidden>⋮⋮</span>
+  </>;
 }
 
-function ColumnDropZone({ active, draggedField, onDropField, children }: { active: boolean; draggedField: string | null; onDropField: (field: string) => void; children: React.ReactNode }) {
-  const [isOver, setIsOver] = useState(false);
-  return (
-    <div
-      className={`mapping-fields ${active || isOver ? "is-active" : ""}`}
-      onMouseEnter={() => draggedField && setIsOver(true)}
-      onMouseLeave={() => setIsOver(false)}
-      onMouseUp={() => {
-        setIsOver(false);
-        if (draggedField) onDropField(draggedField);
-      }}
-    >
-      {children}
-    </div>
-  );
+function SourceField({ field, selected, dragging, usedCount, onSelect, onBeginDrag }: {
+  field: string; selected: boolean; dragging: boolean; usedCount: number;
+  onSelect: (detail: number) => void; onBeginDrag: (event: PointerEvent<HTMLElement>) => void;
+}) {
+  return <Button type="button" variant="secondary" size="s" fillWidth horizontal="start"
+    className={`source-chip ${selected ? "is-selected" : ""} ${dragging ? "is-dragging" : ""}`}
+    onClick={(event: MouseEvent) => onSelect(event.detail)} onPointerDown={onBeginDrag}
+    onDragStart={(event: DragEvent) => event.preventDefault()} aria-pressed={selected}>
+    <SourceContent field={field} usedCount={usedCount} />
+  </Button>;
 }
 
-export function MappingEditor({ jobId, headers, columns, onChange }: { jobId?: string; headers: string[]; columns: OutputColumn[]; onChange: (columns: OutputColumn[]) => void }) {
+function ColumnDropZone({ columnId, active, isOver, children }: {
+  columnId: string; active: boolean; isOver: boolean; children: React.ReactNode;
+}) {
+  return <div data-mapping-column-id={columnId} className={`mapping-fields ${active ? "is-active" : ""} ${isOver ? "is-over" : ""}`}>{children}</div>;
+}
+
+export function MappingEditor({ jobId, headers, columns, onChange, onDragStateChange }: { jobId?: string; headers: string[]; columns: OutputColumn[]; onChange: (columns: OutputColumn[]) => void; onDragStateChange?: (active: boolean) => void }) {
   const [selectedField, setSelectedField] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [draggedField, setDraggedField] = useState<string | null>(null);
   const [blankCheck, setBlankCheck] = useState<{ signature: string; report: MappingBlankReport } | null>(null);
   const [blankCheckError, setBlankCheckError] = useState<string | null>(null);
   const usage = useMemo(() => {
@@ -118,16 +105,6 @@ export function MappingEditor({ jobId, headers, columns, onChange }: { jobId?: s
     return () => { window.clearTimeout(timer); controller.abort(); };
   }, [jobId, blankCheckSignature]);
 
-  useEffect(() => {
-    const finishDrag = () => setDraggedField(null);
-    window.addEventListener("mouseup", finishDrag);
-    window.addEventListener("touchend", finishDrag);
-    return () => {
-      window.removeEventListener("mouseup", finishDrag);
-      window.removeEventListener("touchend", finishDrag);
-    };
-  }, []);
-
   const updateColumn = (id: string, update: Partial<OutputColumn>) => {
     onChange(columns.map((column) => column.id === id ? { ...column, ...update } : column));
   };
@@ -147,6 +124,8 @@ export function MappingEditor({ jobId, headers, columns, onChange }: { jobId?: s
     setFields(columnId, [...target.source_fields, field]);
     setSelectedField(null);
   };
+
+  const { rootRef, previewRef, drag, overColumn, begin, consumeClick } = useSourceDrag(assignField, onDragStateChange);
 
   const removeField = (columnId: string, field: string) => {
     const target = columns.find((column) => column.id === columnId);
@@ -193,10 +172,11 @@ export function MappingEditor({ jobId, headers, columns, onChange }: { jobId?: s
   };
 
   return (
+    <div ref={rootRef} className="mapping-editor">
     <Row fillWidth gap="24" vertical="start" m={{ direction: "column" }}>
         <Column width={24} m={{ width: "100%" }} gap="16" background="surface" border="neutral-alpha-weak" radius="l" padding="20" className="source-palette">
           <Column gap="4">
-            <Heading as="h3" variant="heading-strong-s">Source fields</Heading>
+            <Heading as="h3" data-tour="source-fields" variant="heading-strong-s">Source fields</Heading>
             <Text variant="body-default-xs" onBackground="neutral-weak">Select a field and choose an output column, or drag it directly into one.</Text>
           </Column>
           <Input id="source-field-search" label="Search available fields" value={search} onChange={(event) => setSearch(event.target.value)} />
@@ -215,9 +195,10 @@ export function MappingEditor({ jobId, headers, columns, onChange }: { jobId?: s
                 key={field}
                 field={field}
                 selected={selectedField === field}
+                dragging={drag?.field === field}
                 usedCount={usage.get(field) ?? 0}
-                onSelect={() => setSelectedField((current) => current === field ? null : field)}
-                onBeginDrag={() => setDraggedField(field)}
+                onSelect={(detail) => { if (!consumeClick(detail)) setSelectedField((current) => current === field ? null : field); }}
+                onBeginDrag={(event) => begin(event, field)}
               />
             ))}
             {!filteredAvailable.length && (
@@ -233,7 +214,7 @@ export function MappingEditor({ jobId, headers, columns, onChange }: { jobId?: s
         <Column flex={1} gap="16" fillWidth>
           <Row fillWidth horizontal="between" vertical="center" gap="12" wrap>
             <Column gap="2">
-              <Heading as="h3" variant="heading-strong-s">Output columns</Heading>
+              <Heading as="h3" data-tour="output-columns" variant="heading-strong-s">Output columns</Heading>
               <Text variant="body-default-xs" onBackground="neutral-weak">Source order controls Fill and Join results.</Text>
             </Column>
             <Tag variant={incompleteColumns.length ? "warning" : "success"}>
@@ -270,10 +251,10 @@ export function MappingEditor({ jobId, headers, columns, onChange }: { jobId?: s
                   </Row>
                 )}
 
-                <ColumnDropZone active={Boolean(selectedField || draggedField)} draggedField={draggedField} onDropField={(field) => assignField(column.id, field)}>
+                <ColumnDropZone columnId={column.id} active={Boolean(selectedField || drag)} isOver={overColumn === column.id}>
                   <Column gap="12">
                     <Row fillWidth horizontal="between" vertical="center" gap="12" wrap>
-                      <Text variant="label-strong-s">Source priority</Text>
+                      <Text data-tour={index === 0 ? "source-priority" : undefined} variant="label-strong-s">Source priority</Text>
                       <Button
                         size="s"
                         variant={selectedField ? "primary" : "tertiary"}
@@ -308,7 +289,7 @@ export function MappingEditor({ jobId, headers, columns, onChange }: { jobId?: s
                     <Text variant="label-strong-s">How should this column be built?</Text>
                     <Text variant="body-default-xs" onBackground="neutral-weak">{transform.help}</Text>
                   </Column>
-                  <div className="transform-grid" role="group" aria-label={`Transform for ${column.name}`}>
+                  <div data-tour={index === 0 ? "mapping-modes" : undefined} className="transform-grid" role="group" aria-label={`Transform for ${column.name}`}>
                     {TRANSFORMS.map((option) => {
                       const disabled = !column.source_fields.length
                         || (option.kind === "none" && column.source_fields.length !== 1)
@@ -345,7 +326,7 @@ export function MappingEditor({ jobId, headers, columns, onChange }: { jobId?: s
                       ))}
                     </Row>
                   )}
-                  <Column gap="4" padding="12" radius="m" background="neutral-alpha-weak">
+                  <Column data-tour={index === 0 ? "mapping-options" : undefined} gap="4" padding="12" radius="m" background="neutral-alpha-weak">
                     <Checkbox
                       label="Normalize names and emails"
                       isChecked={column.normalize}
@@ -377,5 +358,10 @@ export function MappingEditor({ jobId, headers, columns, onChange }: { jobId?: s
           <Button variant="secondary" onClick={addColumn}>Add another empty output column</Button>
         </Column>
     </Row>
+    {drag && createPortal(
+      <div ref={previewRef} className="source-chip drag-overlay" aria-hidden="true" style={{ width: drag.width }}>
+        <Row paddingX="4" paddingY="0" textWeight="strong" textSize="s" className="font-label"><SourceContent field={drag.field} usedCount={usage.get(drag.field) ?? 0} /></Row>
+      </div>, document.body)}
+    </div>
   );
 }

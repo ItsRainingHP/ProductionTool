@@ -36,7 +36,7 @@ export function PersonalDataNotice({ findings }: { findings: PersonalDataFinding
         </Row>
         <Column gap="4" flex={1}>
           <Row gap="8" vertical="center" wrap>
-            <Heading as="h2" variant="heading-strong-m">Potential personal data detected</Heading>
+            <Heading as="h2" data-tour="personal-data" variant="heading-strong-m">Potential personal data detected</Heading>
             <Tag variant="warning">Advisory</Tag>
           </Row>
           <Text variant="body-default-s">

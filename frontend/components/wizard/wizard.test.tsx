@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Providers } from "../../app/providers";
 import type { Analysis, Job, Preview } from "../../lib/types";
@@ -17,6 +17,7 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("../../lib/api", () => ({
   createJob: vi.fn(), deleteJob: vi.fn(), finalizeJob: vi.fn(), getCapabilities: vi.fn(),
+  getSystemStatus: vi.fn().mockResolvedValue({ update_available: false }),
   getJob: vi.fn(), getPreview: vi.fn(), inspectMappingBlanks: vi.fn(), readyForReview: vi.fn(), setMapping: vi.fn(),
   setPleadingSettings: vi.fn(), setWorkflow: vi.fn(), uploadSource: vi.fn(),
 }));
@@ -52,7 +53,7 @@ describe("wizard recovery", () => {
     navigation.segments = [];
     window.sessionStorage.clear();
     Object.defineProperty(window, "localStorage", { configurable: true, value: {
-      getItem: vi.fn(() => null), setItem: vi.fn(), removeItem: vi.fn(), clear: vi.fn(),
+      getItem: vi.fn((key: string) => key === "production-tool.onboarding.v1" ? JSON.stringify({ schemaVersion: 1, preference: "skipped", chapters: {} }) : null), setItem: vi.fn(), removeItem: vi.fn(), clear: vi.fn(),
     } });
     Object.defineProperty(window, "matchMedia", {
       configurable: true,
@@ -276,6 +277,7 @@ describe("wizard recovery", () => {
     vi.mocked(getJob).mockResolvedValueOnce(configured).mockResolvedValueOnce({ ...configured, status: "ready_for_review" });
     vi.mocked(setMapping).mockResolvedValue(configured);
     vi.mocked(readyForReview).mockResolvedValue({ ...configured, status: "preparing_review" });
+    vi.mocked(getPreview).mockResolvedValue(preview);
     render(<Providers><Wizard /></Providers>);
     expect(await screen.findByRole("heading", { name: "Build privilege output" })).toBeVisible();
     fireEvent.change(screen.getByLabelText("Output column 1"), { target: { value: "Reviewer" } });
@@ -621,18 +623,74 @@ describe("wizard recovery", () => {
     expect(screen.getByRole("heading", { name: "Review CSV problems" })).toBeVisible();
   });
 
-  it("builds default privilege columns after selecting that workflow", async () => {
+  it.each([
+    { fields: ["Redact", "Withhold"], expected: ["Redact", "Withhold"] },
+    { fields: ["Tag: Privilege - Withhold", "Tag: Privilege - Redact"], expected: ["Tag: Privilege - Redact", "Tag: Privilege - Withhold"] },
+    { fields: [" PRIVILEGE_REDACT ", "privilege-withhold"], expected: [" PRIVILEGE_REDACT ", "privilege-withhold"] },
+    { fields: ["Withhold"], expected: ["Withhold"] },
+  ])("defaults to only Bates Range and a Fill privilege column for $fields", async ({ fields, expected }) => {
     navigation.segments = ["job-1", "data"];
+    const headers = ["Begin Bates", "Subject", "Redaction notes", ...fields, "End Bates", "Attorney-Client"];
     const undecided = { ...reviewed, workflow: null, status: "needs_configuration",
-      analysis: { ...analysis, detected_workflow: "unknown", issues: [] }, reviewed_issue_codes: [] } as Job;
+      analysis: { ...analysis, headers, column_count: headers.length, detected_workflow: "unknown", issues: [] }, reviewed_issue_codes: [] } as Job;
     vi.mocked(getJob).mockResolvedValue(undecided);
     vi.mocked(setWorkflow).mockResolvedValue({ ...undecided, workflow: "privilege_log" });
-    render(<Providers><Wizard /></Providers>);
+    const { container } = render(<Providers><Wizard /></Providers>);
     fireEvent.click(await screen.findByRole("radio", { name: /Privilege Log/ }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     expect(await screen.findByRole("heading", { name: "Build privilege output" })).toBeVisible();
     expect(setWorkflow).toHaveBeenCalledWith("job-1", "privilege_log");
     expect(screen.getByLabelText("Output column 1")).toHaveValue("Bates Range");
+    expect(screen.getByLabelText("Output column 2")).toHaveValue("Privilege");
+    expect(screen.queryByLabelText("Output column 3")).not.toBeInTheDocument();
+    expect(within(screen.getByRole("group", { name: "Transform for Bates Range" })).getByRole("button", { name: "Bates range" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(screen.getByRole("group", { name: "Transform for Privilege" })).getByRole("button", { name: "Fill" })).toHaveAttribute("aria-pressed", "true");
+    const cards = container.querySelectorAll(".mapping-column-card");
+    expect(Array.from(cards[1].querySelectorAll(".mapping-field-row"), (row) => row.querySelector(".field-order + span")?.textContent)).toEqual(expected);
+    for (const field of ["Subject", "Redaction notes", "Attorney-Client"]) {
+      const source = Array.from(container.querySelectorAll(".source-chip")).find((item) => item.querySelector(".source-name")?.textContent === field);
+      expect(source?.querySelector(".source-count")).toHaveAttribute("aria-label", "Unused");
+    }
+    vi.mocked(setMapping).mockResolvedValue({ ...undecided, workflow: "privilege_log" });
+    vi.mocked(readyForReview).mockRejectedValue(new Error("Review unavailable"));
+    fireEvent.click(screen.getByRole("button", { name: "Review output" }));
+    await waitFor(() => expect(setMapping).toHaveBeenCalledWith("job-1", { columns: [
+      expect.objectContaining({ name: "Bates Range", source_fields: ["Begin Bates", "End Bates"], transform: { kind: "shorten_bates", delimiter: null } }),
+      expect.objectContaining({ name: "Privilege", source_fields: expected, transform: { kind: "fill", delimiter: null } }),
+    ] }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Review unavailable");
+  });
+
+  it("leaves the privilege column empty when Redact and Withhold are absent on a resumed job", async () => {
+    navigation.segments = ["job-1", "advanced"];
+    vi.mocked(getJob).mockResolvedValue({ ...reviewed, workflow: "privilege_log", status: "needs_configuration",
+      analysis: { ...analysis, issues: [] } } as Job);
+    const { container } = render(<Providers><Wizard /></Providers>);
+    expect(await screen.findByLabelText("Output column 2")).toHaveValue("Privilege");
+    expect(screen.getByLabelText("Output column 1")).toHaveValue("Bates Range");
+    expect(screen.queryByLabelText("Output column 3")).not.toBeInTheDocument();
+    expect(container.querySelectorAll(".mapping-column-card")[1].querySelectorAll(".mapping-field-row")).toHaveLength(0);
+    expect(within(screen.getByRole("group", { name: "Transform for Privilege" })).getByRole("button", { name: "Fill" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Review output" })).toBeDisabled();
+  });
+
+  it("shows Bates-only row details on Data and requires acknowledgment before review", async () => {
+    navigation.segments = ["job-1", "data"];
+    const configured = { ...reviewed, workflow: "privilege_log", status: "needs_configuration", reviewed_issue_codes: [],
+      analysis: { ...analysis, headers: ["Begin Bates", "End Bates", "Redact", "Withhold"], column_count: 4,
+        issues: [{ code: "bates_only_row", severity: "warning", overrideable: true, row: 3, count: 2, column: null,
+          message: "One or more rows contain Begin and End Bates values but no data in any other column." }] } } as Job;
+    vi.mocked(getJob).mockResolvedValue(configured);
+    render(<Providers><Wizard /></Providers>);
+    expect(await screen.findByRole("heading", { name: "Choose the output" })).toBeVisible();
+    expect(screen.getByText(/Begin and End Bates values but no data/)).toBeVisible();
+    expect(screen.getByText(/First affected row: 3/)).toHaveTextContent("2 occurrences");
+    expect(screen.queryByRole("checkbox", { name: /understand how this issue affects/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Continue with warnings" }));
+    expect(await screen.findByRole("heading", { name: "Build privilege output" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Review output" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("checkbox", { name: /understand how this issue affects/ }));
+    expect(screen.getByRole("button", { name: "Review output" })).toBeEnabled();
   });
 
   it("applies a template and identifies source fields absent from the CSV", async () => {

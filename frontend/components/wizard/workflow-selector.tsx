@@ -43,7 +43,7 @@ export function WorkflowSelector({ value, onChange }: { value: Workflow | null; 
   };
 
   return (
-    <div role="radiogroup" aria-label="Output type" className="workflow-group">
+    <div role="radiogroup" aria-label="Output type" data-tour="output-choice" className="workflow-group">
       <Grid columns="2" gap="16" fillWidth s={{ columns: 1 }}>
         {WORKFLOWS.map((workflow, index) => (
           <Card

@@ -25,11 +25,14 @@ from .models import (
     PleadingSettings,
     Preview,
     ReviewRequest,
+    SystemStatus,
     WorkflowUpdate,
 )
 from .release import APP_VERSION
+from .system_status import SystemStatusChecker
 
 store = JobStore()
+status_checker = SystemStatusChecker()
 
 
 async def cleanup_loop() -> None:
@@ -41,12 +44,16 @@ async def cleanup_loop() -> None:
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     store.start()
+    status_checker.start()
     task = asyncio.create_task(cleanup_loop())
-    yield
-    task.cancel()
-    with suppress(asyncio.CancelledError):
-        await task
-    store.stop()
+    try:
+        yield
+    finally:
+        task.cancel()
+        with suppress(asyncio.CancelledError):
+            await task
+        status_checker.stop()
+        store.stop()
 
 
 app = FastAPI(title="Production Tool API", version=APP_VERSION, lifespan=lifespan)
@@ -76,6 +83,11 @@ def api_health() -> dict[str, int | str]:
 @app.get("/api/v1/capabilities", response_model=Capabilities)
 def capabilities() -> Capabilities:
     return store.capabilities()
+
+
+@app.get("/api/v1/system-status", response_model=SystemStatus)
+def system_status() -> SystemStatus:
+    return status_checker.get()
 
 
 @app.post("/api/v1/jobs", response_model=JobCreated, status_code=201)
