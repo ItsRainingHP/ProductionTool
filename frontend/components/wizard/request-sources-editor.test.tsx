@@ -60,3 +60,11 @@ it("keeps saved sources, supports old jobs, and explains an empty selection", ()
   expect(screen.getByRole("checkbox", { name: "Emails" })).toBeVisible();
   expect(screen.queryByRole("checkbox", { name: "Begin Bates" })).not.toBeInTheDocument();
 });
+
+it("suggests compact numbered headers when resuming a legacy analysis", () => {
+  const legacy = { analysis: { headers: ["Begin Bates", "End Bates", "RFP1", "Matter: ROG2"],
+    begin_bates_header: "Begin Bates", end_bates_header: "End Bates", request_candidates: [] },
+    pleading_settings: null } as unknown as Job;
+  expect(initialPleadingSettings(legacy).request_sources?.map((source) => source.column))
+    .toEqual(["RFP1", "Matter: ROG2"]);
+});

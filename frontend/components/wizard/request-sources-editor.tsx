@@ -13,7 +13,10 @@ function requestCandidates(analysis: Analysis) {
         code: colon >= 0 ? column.slice(colon + 1).trim() : column,
         layout: combined ? "category" as const : "individual" as const,
         input_separator: combined ? "legacy" as const : "auto" as const,
-        suggested: /\b(?:rfps?|rogs?)\b/i.test(column), samples: [] as string[] };
+        suggested: /\b(?:rfps?|rogs?)\b/i.test(column)
+          || /^(?:rfp|rog)\s*\d+\b/i.test(column.trim())
+          || /^(?:rfp|rog)\s*\d+\b/i.test(colon >= 0 ? column.slice(colon + 1).trim() : column),
+        samples: [] as string[] };
     });
 }
 

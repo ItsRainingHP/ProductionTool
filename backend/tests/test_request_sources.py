@@ -189,13 +189,21 @@ def test_source_order_precedes_first_seen_row_and_cross_layout_duplicates(tmp_pa
     assert preview.rows == [["Later", "SYN_0001-4"], ["Other", "SYN_0001-2"]]
 
 
-@pytest.mark.parametrize("header", ["RFP 01", "ROG 02: Notes"])
+@pytest.mark.parametrize("header", ["RFP 01", "ROG 02: Notes", "RFP1", "ROG2", "Matter: RFP1"])
 def test_standalone_numbered_boolean_columns_are_not_category_lists(tmp_path, header):
     source = source_csv(tmp_path, [header], [["SYN_0001", "SYN_0002", "TRUE"]])
     analysis = analyze_csv(source, source.name)
     assert analysis.request_candidates[0].layout == "individual"
+    assert analysis.request_count == 1
     preview = build_preview(source, analysis, "rfp_ranges", None)
     assert preview.rows[0][0] != "TRUE"
+
+
+@pytest.mark.parametrize("combined_label", ["FALSE", "No", "0"])
+def test_legacy_combined_nonempty_labels_take_precedence_over_flags(combined_label):
+    extractor = RequestExtractor(["RFP", "RFP1"])
+    assert [a.code for a in extractor.extract({"RFP": combined_label, "RFP1": "TRUE"})] == [combined_label]
+    assert [a.code for a in extractor.extract({"RFP": "null", "RFP1": "TRUE"})] == ["RFP 01"]
 
 
 def test_inferred_matter_category_agrees_between_analysis_and_default_output(tmp_path):

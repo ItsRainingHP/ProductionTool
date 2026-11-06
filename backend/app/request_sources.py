@@ -62,7 +62,7 @@ def candidates(headers: Iterable[str]) -> list[RequestCandidate]:
                 "rfps", "rogs", "requests for production", "requests for documents",
             } else "individual",
             input_separator="legacy" if combined else "auto",
-            suggested=bool(REQUEST_NAME.search(header)),
+            suggested=bool(REQUEST_NAME.search(header) or NUMBER.match(header.strip()) or NUMBER.match(code)),
         ))
     return result
 
@@ -147,7 +147,7 @@ class RequestExtractor:
         assignments: dict[str, Assignment] = {}
         legacy_combined = next((s for s in self.sources if normalized(s.column) == "rfp"), None)
         sources = self.sources
-        if self.legacy and legacy_combined and normalized(row.get(legacy_combined.column, "")) not in NEGATIVE:
+        if self.legacy and legacy_combined and normalized(row.get(legacy_combined.column, "")) not in {"", "null"}:
             sources = [legacy_combined]
         for source_order, source in enumerate(sources):
             value = row.get(source.column, "").strip()
