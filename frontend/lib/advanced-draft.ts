@@ -55,7 +55,15 @@ export function loadAdvancedDraft(job: Job): { status: "none" | "restored" | "st
       && draft.pleadingSettings
       && ["comma", "semicolon", "pipe", "newline"].includes(draft.pleadingSettings.delimiter)
       && typeof draft.pleadingSettings.include_and === "boolean";
-    if (valid && draft.configurationRevision === job.configuration_revision
+    const sources = draft?.pleadingSettings?.request_sources;
+    const sourcesValid = sources == null || (Array.isArray(sources)
+      && new Set(sources.map((s) => s?.column)).size === sources.length
+      && sources.every((s) => s && typeof s.column === "string" && s.column.length > 0
+        && ["individual", "category"].includes(s.layout ?? "individual")
+        && ["auto", "single", "semicolon", "comma", "pipe", "newline", "legacy"].includes(s.input_separator ?? "auto")
+        && (!job.analysis || (job.analysis.headers.includes(s.column)
+          && ![job.analysis.begin_bates_header, job.analysis.end_bates_header].includes(s.column)))));
+    if (valid && sourcesValid && draft.configurationRevision === job.configuration_revision
       && draft.expiresAt === job.expires_at && Date.parse(draft.expiresAt) > Date.now()
       && job.status === "needs_configuration") {
       const { replaceTrueWithHeader, ...current } = draft;

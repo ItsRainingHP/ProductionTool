@@ -33,16 +33,24 @@ from .models import (
     PleadingSettings,
     Preview,
 )
+from .request_sources import (
+    NUMBER as RFP_NUMBER_PATTERN,
+)
+from .request_sources import (
+    RequestConfigurationError,
+    RequestExtractor,
+    candidates,
+    legacy_cell_labels,
+    legacy_header_label,
+    normalized,
+    observe_candidate,
+)
 
 BEGIN_ALIASES = ("bates/control #", "begin bates")
 END_ALIASES = ("end bates/control #", "end bates")
 FORMULA_PREFIXES = ("=", "+", "-", "@", "＝", "＋", "－", "＠")
 BATES_PATTERN = re.compile(r"^(.*?)(\d+)$")
 TAG_PREFIX_PATTERN = re.compile(r"^tag:\s*", re.IGNORECASE)
-RFP_NUMBER_PATTERN = re.compile(r"^(?:tag:\s*)?(rfp|rog)(?:\s*:\s*(?:rfp|rog))?\s*(\d+)\b", re.IGNORECASE)
-NEXT_REQUEST_PATTERN = re.compile(
-    r"[;,](?=\s*(?:tag:\s*)?(?:rfp|rog)(?:\s*:\s*(?:rfp|rog))?\s*\d+\b)", re.IGNORECASE
-)
 MAX_CSV_FIELD_CHARACTERS = 16 * 1024 * 1024
 csv.field_size_limit(MAX_CSV_FIELD_CHARACTERS)
 
@@ -274,25 +282,12 @@ def is_end_header(value: str) -> bool:
 
 
 def rfp_header_label(value: str) -> str | None:
-    normalized = value.strip()
-    if normalize_header(normalized) == "rfp":
-        return None
-    match = RFP_NUMBER_PATTERN.match(normalized)
-    if not match:
-        return None
-    return f"{match.group(1).upper()} {int(match.group(2)):02d}"
+    return legacy_header_label(value)
 
 
 def request_labels_from_cell(value: str) -> list[str]:
     """Keep free-text annotations while recognizing additional numbered requests."""
-    parts = [part.strip() for part in NEXT_REQUEST_PATTERN.split(value) if part.strip()]
-    labels: list[str] = []
-    for part in parts:
-        match = RFP_NUMBER_PATTERN.match(part)
-        label = f"{match.group(1).upper()} {int(match.group(2)):02d}{part[match.end():]}" if match else part
-        if label not in labels:
-            labels.append(label)
-    return labels
+    return legacy_cell_labels(value)
 
 
 def detect_platform(headers: Iterable[str]) -> tuple[Platform, int]:
@@ -306,6 +301,11 @@ def detect_platform(headers: Iterable[str]) -> tuple[Platform, int]:
     logikcull_score += 40 if "end bates/control #" in normalized else 0
     logikcull_score += min(12, 2 * len(normalized & LOGIKCULL_METADATA_HEADERS))
     logikcull_score += 8 if any(re.fullmatch(r"rfp:\s*rfp\s+\d+", header) for header in normalized) else 0
+    # Everlaw also exports these Bates names; the shared pair is insufficient evidence.
+    if not normalized & LOGIKCULL_METADATA_HEADERS and not any(
+        re.fullmatch(r"rfp:\s*rfp\s+\d+", header) for header in normalized
+    ):
+        logikcull_score = min(logikcull_score, 40)
 
     everlaw_score = 0
     everlaw_score += 40 if any(header.startswith("begin bates num from") for header in normalized) else 0
@@ -521,7 +521,8 @@ def analyze_csv(
     begin_indices: list[int] = []
     end_indices: list[int] = []
     combined_rfp_index: int | None = None
-    separate_rfp: dict[int, str] = {}
+    request_candidates = []
+    extractor = RequestExtractor([])
     true_blank_candidates: set[int] = set()
     true_blank_seen: set[int] = set()
     personal_counts: dict[str, int] = defaultdict(int)
@@ -550,12 +551,11 @@ def analyze_csv(
             end_indices = [i for i, value in enumerate(headers) if is_end_header(value)]
             bates_indices = set(begin_indices + end_indices)
             non_bates_indices = [index for index in range(len(headers)) if index not in bates_indices]
+            request_candidates = candidates([headers[index] for index in non_bates_indices])
+            extractor = RequestExtractor(headers, inferred_candidates=request_candidates)
             for index, header in enumerate(headers):
                 if normalize_header(header) == "rfp":
                     combined_rfp_index = index
-                label = rfp_header_label(header)
-                if label:
-                    separate_rfp[index] = label
             if len(begin_indices) > 1:
                 record_issue(_make_issue("duplicate_begin_bates_header"))
                 record_issue(_make_issue("conflicting_required_columns"))
@@ -580,6 +580,10 @@ def analyze_csv(
                         true_blank_seen.add(index)
                     elif normalized_value:
                         true_blank_candidates.discard(index)
+                for index, candidate in zip(
+                    (index for index in non_bates_indices if headers[index].strip()), request_candidates, strict=True,
+                ):
+                    observe_candidate(candidate, row[index])
                 if not begin_indices or not end_indices:
                     continue
                 begin_raw = row[begin_indices[0]].strip()
@@ -615,24 +619,10 @@ def analyze_csv(
                     record_issue(_make_issue("reversed_range", row=row_number))
                     continue
                 prefixes.add(begin.prefix)
-                request_labels: list[str] = []
-                if combined_rfp_index is not None and row[combined_rfp_index].strip():
-                    request_labels = request_labels_from_cell(row[combined_rfp_index])
-                else:
-                    request_labels = [
-                        label
-                        for index, label in separate_rfp.items()
-                        if row[index].strip().casefold() in {"yes", "true", "1", "x"}
-                    ]
-                for label in request_labels:
-                    number_match = RFP_NUMBER_PATTERN.match(label)
-                    canonical = (
-                        f"{number_match.group(1).upper()} {int(number_match.group(2)):02d}{label[number_match.end():]}"
-                        if number_match else label
-                    )
+                for assignment in extractor.extract(dict(zip(headers, row, strict=True)), row_number):
                     inserted = range_store.execute(
                         "INSERT OR IGNORE INTO analyzed_ranges VALUES (?,?,?,?,?)",
-                        (canonical, begin.prefix, len(begin.number_text), begin.number, end.number),
+                        (assignment.identity, begin.prefix, len(begin.number_text), begin.number, end.number),
                     )
                     if inserted.rowcount == 0:
                         duplicate_ranges += 1
@@ -650,7 +640,11 @@ def analyze_csv(
     if row_count == 0 and headers and ("field_too_large", None) not in issue_map:
         record_issue(_make_issue("no_data_rows"))
     platform, platform_confidence = detect_platform(headers)
-    workflow: DetectedWorkflow = "rfp_ranges" if combined_rfp_index is not None or separate_rfp else "privilege_log"
+    workflow: DetectedWorkflow = "unknown"
+    if extractor.sources:
+        workflow = "rfp_ranges"
+    elif any(re.search(r"privilege|redact|withhold|attorney.client", header, re.I) for header in headers):
+        workflow = "privilege_log"
     true_blank_headers = (
         [header for index, header in enumerate(headers) if index in true_blank_candidates & true_blank_seen]
         if platform == "logikcull"
@@ -697,11 +691,12 @@ def analyze_csv(
         platform=platform,
         platform_confidence=platform_confidence,
         detected_workflow=workflow,
-        rfp_layout="combined" if combined_rfp_index is not None else ("separate" if separate_rfp else None),
+        rfp_layout="combined" if combined_rfp_index is not None else ("separate" if extractor.sources else None),
         begin_bates_header=headers[begin_indices[0]] if begin_indices else None,
         end_bates_header=headers[end_indices[0]] if end_indices else None,
         prefixes=sorted(prefixes),
         request_count=request_count,
+        request_candidates=request_candidates,
         duplicate_ranges=duplicate_ranges,
         gap_count=gap_count,
         issues=list(issue_map.values()),
@@ -709,15 +704,20 @@ def analyze_csv(
     )
 
 
-def _iter_dict_rows(path: Path) -> Iterator[dict[str, str]]:
+def _iter_numbered_rows(path: Path) -> Iterator[tuple[int, dict[str, str]]]:
     _, encoding = _byte_issues(path)
     with path.open("r", encoding=encoding, newline="") as handle:
         reader = csv.reader(handle, strict=True)
         headers = next(reader)
-        for row in reader:
+        for row_number, row in enumerate(reader, start=2):
             if len(row) != len(headers):
                 continue
-            yield dict(zip(headers, row, strict=True))
+            yield row_number, dict(zip(headers, row, strict=True))
+
+
+def _iter_dict_rows(path: Path) -> Iterator[dict[str, str]]:
+    for _, row in _iter_numbered_rows(path):
+        yield row
 
 
 def _valid_bates_pair(begin_value: str, end_value: str) -> tuple[Bates, Bates] | None:
@@ -728,23 +728,33 @@ def _valid_bates_pair(begin_value: str, end_value: str) -> tuple[Bates, Bates] |
 
 
 def _populate_rfp_spool(
-    path: Path, analysis: Analysis, database: Path, max_bytes: int | None = None
+    path: Path, analysis: Analysis, database: Path, max_bytes: int | None = None,
+    settings: PleadingSettings | None = None, acknowledged_issue_codes: Iterable[str] = (),
 ) -> tuple[sqlite3.Connection, int]:
+    connection = sqlite3.connect(database)
+    try:
+        return connection, _fill_rfp_spool(connection, path, analysis, max_bytes, settings, acknowledged_issue_codes)
+    except BaseException:
+        connection.close()
+        raise
+
+
+def _fill_rfp_spool(
+    connection: sqlite3.Connection, path: Path, analysis: Analysis, max_bytes: int | None,
+    settings: PleadingSettings | None, acknowledged_issue_codes: Iterable[str],
+) -> int:
     headers = analysis.headers
     begin_header = analysis.begin_bates_header
     end_header = analysis.end_bates_header
     if not begin_header or not end_header:
-        connection = sqlite3.connect(database)
         connection.execute(
             "CREATE TABLE ranges (label TEXT, prefix TEXT, width INTEGER, begin_number TEXT, end_number TEXT)"
         )
-        return connection, analysis.row_count
-    combined = next((header for header in headers if normalize_header(header) == "rfp"), None)
-    separate: dict[str, str] = {}
-    for header in headers:
-        if label := rfp_header_label(header):
-            separate[header] = label
-    connection = sqlite3.connect(database)
+        return analysis.row_count
+    extractor = RequestExtractor(headers, settings, analysis.request_candidates)
+    use_catalog = not extractor.legacy or any(
+        normalized(source.column) != "rfp" and not legacy_header_label(source.column) for source in extractor.sources
+    )
     if max_bytes is not None:
         page_size = connection.execute("PRAGMA page_size").fetchone()[0]
         connection.execute(f"PRAGMA max_page_count={max(1, max_bytes // page_size)}")
@@ -755,6 +765,11 @@ def _populate_rfp_spool(
         "CREATE TABLE ranges (label TEXT NOT NULL, prefix TEXT NOT NULL, width INTEGER NOT NULL, "
         "begin_number TEXT NOT NULL, end_number TEXT NOT NULL)"
     )
+    if use_catalog:
+        connection.execute(
+            "CREATE TABLE request_labels (ordinal INTEGER PRIMARY KEY, identity TEXT UNIQUE, "
+            "category TEXT, code TEXT, code_key TEXT, sort_key TEXT, display_label TEXT UNIQUE)"
+        )
     skipped = sum(issue.count for issue in analysis.issues if issue.code == "uneven_row_width")
     pending: list[tuple[str, str, int, str, str]] = []
 
@@ -765,27 +780,32 @@ def _populate_rfp_spool(
             connection.close()
             raise
 
-    for row in _iter_dict_rows(path):
+    for row_number, row in _iter_numbered_rows(path):
         pair = _valid_bates_pair(row.get(begin_header, ""), row.get(end_header, ""))
         if not pair:
             skipped += 1
             continue
         begin, end = pair
-        labels: list[str]
-        if combined and row.get(combined, "").strip():
-            raw = row[combined].strip()
-            labels = request_labels_from_cell(raw)
-        else:
-            labels = [
-                label
-                for header, label in separate.items()
-                if row.get(header, "").strip().casefold() in {"yes", "true", "1", "x"} and label
-            ]
-        for label in labels:
-            match = RFP_NUMBER_PATTERN.match(label)
-            sort_label = f"0:{match.group(1).upper()}:{int(match.group(2)):020d}" if match else f"1:{label.casefold()}"
+        for assignment in extractor.extract(row, row_number):
+            match = RFP_NUMBER_PATTERN.match(assignment.code)
+            if match and len(match.group(2)) > 18:
+                match = None
+            sort_label = f"0:{match.group(1).upper()}:{int(match.group(2)):020d}" if match else "1"
+            if extractor.legacy and not match:
+                sort_label += ":" + assignment.code.casefold()
+            elif not match:
+                sort_label += f":{assignment.source_order:020d}"
+            stored_label = sort_label + "\x00" + assignment.code
+            if use_catalog:
+                connection.execute(
+                    "INSERT INTO request_labels(identity,category,code,code_key,sort_key) VALUES (?,?,?,?,?) "
+                    "ON CONFLICT(identity) DO UPDATE SET sort_key=min(sort_key,excluded.sort_key)",
+                    (assignment.identity, assignment.category, assignment.code,
+                     assignment.code, sort_label),
+                )
+                stored_label = assignment.identity
             pending.append(
-                (sort_label + "\x00" + label, begin.prefix, len(begin.number_text), begin.number_text, end.number_text)
+                (stored_label, begin.prefix, len(begin.number_text), begin.number_text, end.number_text)
             )
             if len(pending) >= 10_000:
                 insert_pending_rows()
@@ -793,12 +813,40 @@ def _populate_rfp_spool(
     if pending:
         insert_pending_rows()
     try:
+        if not extractor.legacy:
+            extractor.require_acknowledgments(acknowledged_issue_codes)
+        if use_catalog:
+            connection.execute("CREATE INDEX code_names ON request_labels(code_key)")
+            for identity, category, code, duplicates in connection.execute(
+                "SELECT identity, category, code, "
+                "(SELECT COUNT(*) FROM request_labels other WHERE other.code_key=names.code_key) "
+                "FROM request_labels names ORDER BY ordinal"
+            ):
+                display = f"{category}: {code}" if duplicates > 1 else code
+                suffix = 1
+                while True:
+                    try:
+                        connection.execute(
+                            "UPDATE request_labels SET display_label=? WHERE identity=?", (display, identity),
+                        )
+                        break
+                    except sqlite3.IntegrityError:
+                        suffix += 1
+                        display = f"{category}: {code} [{suffix}]" if category else f"{code} [{suffix}]"
+            connection.execute(
+                "UPDATE ranges SET label=(SELECT sort_key || ':' || printf('%020d', ordinal) || char(0) || "
+                "display_label FROM request_labels WHERE identity=ranges.label)"
+            )
+    except BaseException:
+        connection.close()
+        raise
+    try:
         connection.execute("CREATE INDEX ranges_order ON ranges(label, prefix, width, begin_number, end_number)")
     except BaseException:
         connection.close()
         raise
     connection.commit()
-    return connection, skipped
+    return skipped
 
 
 def _iter_merged_rfp_rows(connection: sqlite3.Connection) -> Iterator[list[str]]:
@@ -985,7 +1033,9 @@ def build_preview(
     if workflow == "rfp_ranges":
         headers = ["RFP", "Bates Range"]
         with tempfile.TemporaryDirectory(prefix="production-tool-preview-") as temporary:
-            connection, skipped = _populate_rfp_spool(path, analysis, Path(temporary) / "ranges.sqlite")
+            connection, skipped = _populate_rfp_spool(
+                path, analysis, Path(temporary) / "ranges.sqlite", settings=pleading_settings
+            )
             try:
                 iterator = _iter_merged_rfp_rows(connection)
                 sample_rows = list(islice(iterator, limit))
@@ -1092,6 +1142,7 @@ def write_output(
     pleading_settings: PleadingSettings | None = None,
     max_work_bytes: int | None = None,
     scratch_dir: Path | None = None,
+    acknowledged_issue_codes: Iterable[str] = (),
 ) -> OutputStats:
     started = time.perf_counter()
     if workflow == "rfp_ranges":
@@ -1103,7 +1154,7 @@ def write_output(
             database = Path(temporary) / "ranges.sqlite"
             try:
                 connection, skipped = _populate_rfp_spool(
-                    source, analysis, database, max_work_bytes
+                    source, analysis, database, max_work_bytes, effective_settings, acknowledged_issue_codes
                 )
             except sqlite3.DatabaseError as exc:
                 if "full" in str(exc).casefold():
@@ -1124,7 +1175,7 @@ def write_output(
                 connection.close()
         if output_rows == 0:
             path.unlink(missing_ok=True)
-            raise ProcessingLimitError("The selected workflow produced no recoverable output rows")
+            raise RequestConfigurationError("The selected request sources contain no recoverable RFP ranges.")
         if max_work_bytes is not None and path.stat().st_size > max_work_bytes:
             path.unlink(missing_ok=True)
             raise ProcessingLimitError("Generated output exceeded the configured per-job work limit")

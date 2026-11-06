@@ -357,6 +357,8 @@ export interface components {
              * @default 0
              */
             request_count: number;
+            /** Request Candidates */
+            request_candidates?: components["schemas"]["RequestCandidate"][];
             /**
              * Duplicate Ranges
              * @default 0
@@ -629,6 +631,8 @@ export interface components {
              * @default true
              */
             include_and: boolean;
+            /** Request Sources */
+            request_sources?: components["schemas"]["RequestSource"][] | null;
         };
         /** Preview */
         Preview: {
@@ -669,6 +673,57 @@ export interface components {
             source_revision: string;
             /** Image Digest */
             image_digest: string;
+        };
+        /** RequestCandidate */
+        RequestCandidate: {
+            /** Column */
+            column: string;
+            /**
+             * Layout
+             * @default individual
+             * @enum {string}
+             */
+            layout: "individual" | "category";
+            /**
+             * Input Separator
+             * @default auto
+             * @enum {string}
+             */
+            input_separator: "auto" | "single" | "semicolon" | "comma" | "pipe" | "newline" | "legacy";
+            /**
+             * Category
+             * @default
+             */
+            category: string;
+            /**
+             * Code
+             * @default
+             */
+            code: string;
+            /**
+             * Suggested
+             * @default false
+             */
+            suggested: boolean;
+            /** Samples */
+            samples?: string[];
+        };
+        /** RequestSource */
+        RequestSource: {
+            /** Column */
+            column: string;
+            /**
+             * Layout
+             * @default individual
+             * @enum {string}
+             */
+            layout: "individual" | "category";
+            /**
+             * Input Separator
+             * @default auto
+             * @enum {string}
+             */
+            input_separator: "auto" | "single" | "semicolon" | "comma" | "pipe" | "newline" | "legacy";
         };
         /** ReviewRequest */
         ReviewRequest: {

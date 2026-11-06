@@ -18,6 +18,11 @@ const ALLOWED_CSV_MIME_TYPES = new Set([
 
 export type ValidationTone = "valid" | "warning" | "blocked";
 
+export function csvAnalysis(analysis: Analysis | null | undefined): Analysis | null {
+  return analysis ? { ...analysis, issues: analysis.issues.filter((issue) =>
+    !["unexpected_request_value", "ambiguous_request_separator"].includes(issue.code)) } : null;
+}
+
 export function warningIssues(analysis: Analysis | null | undefined): Issue[] {
   return analysis?.issues.filter((issue) => issue.severity === "warning") ?? [];
 }

@@ -14,13 +14,16 @@ export type Workflow = Schema["WorkflowUpdate"]["workflow"];
 export type TransformKind = Schema["MappingTransform"]["kind"];
 export type Issue = Required<Schema["Issue"]>;
 export type PersonalDataFinding = Schema["PersonalDataFinding"];
-export type Analysis = Omit<Required<Schema["Analysis"]>, "issues"> & { issues: Issue[] };
+export type Analysis = Omit<Required<Schema["Analysis"]>, "issues" | "request_candidates"> &
+  Pick<Schema["Analysis"], "request_candidates"> & { issues: Issue[] };
 export type OutputColumn = Omit<Required<Schema["OutputColumn"]>, "transform"> & {
   transform: Required<Schema["MappingTransform"]>;
 };
 export type MappingConfig = Partial<Omit<Schema["MappingConfig"], "columns">> & { columns: OutputColumn[] };
 export type MappingBlankReport = Schema["MappingBlankReport"];
-export type PleadingSettings = Required<Schema["PleadingSettings"]>;
+export type RequestSource = Schema["RequestSource"];
+export type PleadingSettings = Omit<Required<Schema["PleadingSettings"]>, "request_sources"> &
+  Pick<Schema["PleadingSettings"], "request_sources">;
 type OutputStats = Schema["OutputStats"];
 export type Preview = Schema["Preview"];
 

@@ -60,6 +60,19 @@ class PersonalDataFinding(BaseModel):
     columns: list[str] = Field(min_length=1)
 
 
+class RequestSource(BaseModel):
+    column: str = Field(min_length=1)
+    layout: Literal["individual", "category"] = "individual"
+    input_separator: Literal["auto", "single", "semicolon", "comma", "pipe", "newline", "legacy"] = "auto"
+
+
+class RequestCandidate(RequestSource):
+    category: str = ""
+    code: str = ""
+    suggested: bool = False
+    samples: list[str] = Field(default_factory=list)
+
+
 class Analysis(BaseModel):
     filename: str
     size_bytes: int
@@ -75,6 +88,7 @@ class Analysis(BaseModel):
     end_bates_header: str | None = None
     prefixes: list[str] = Field(default_factory=list)
     request_count: int = 0
+    request_candidates: list[RequestCandidate] = Field(default_factory=list)
     duplicate_ranges: int = 0
     gap_count: int = 0
     issues: list[Issue] = Field(default_factory=list)
@@ -198,6 +212,15 @@ class WorkflowUpdate(BaseModel):
 class PleadingSettings(BaseModel):
     delimiter: Literal["comma", "semicolon", "pipe", "newline"] = "comma"
     include_and: bool = True
+    request_sources: list[RequestSource] | None = None
+
+    @model_validator(mode="after")
+    def unique_request_sources(self) -> PleadingSettings:
+        if self.request_sources is not None:
+            columns = [source.column for source in self.request_sources]
+            if len(columns) != len(set(columns)):
+                raise ValueError("Select each request column only once")
+        return self
 
 
 class FinalizeRequest(BaseModel):

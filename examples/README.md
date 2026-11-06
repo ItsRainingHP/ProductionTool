@@ -24,7 +24,7 @@ Each generated platform/type set contains 15 valid or edge-valid fixtures and 10
 
 ## Output-change stress examples
 
-Four `*_stress_*.csv` inputs exercise the new output rules in both platforms. Every value is synthetic.
+Four `*_stress_*.csv` inputs exercise the new output rules in both platforms. Every value is synthetic. Fixture `platform` records the export's origin; `expectedDetectedPlatform` records an explicitly different detection result when shared headers cannot identify the vendor confidently.
 
 | Input | Rows | Coverage |
 | --- | ---: | --- |

@@ -14,6 +14,7 @@ type StressCase = {
   id: string;
   path: string;
   platform: "logikcull" | "everlaw";
+  expectedDetectedPlatform?: "logikcull" | "everlaw" | "unknown";
   workflow: "rfp_ranges" | "privilege_log";
   replaceTrueWithHeader?: boolean;
   columns?: OutputColumn[];
@@ -41,7 +42,7 @@ for (const scenario of cases) {
       await expect(page).toHaveURL(/\/wizard\/[0-9a-f-]+\/data$/);
       jobId = new URL(page.url()).pathname.split("/")[2];
       const analyzed = await (await request.get(`/api/v1/jobs/${jobId}`)).json();
-      expect(analyzed.analysis.platform).toBe(scenario.platform);
+      expect(analyzed.analysis.platform).toBe(scenario.expectedDetectedPlatform ?? scenario.platform);
       expect(analyzed.analysis.issues).toEqual([]);
       await page.getByRole("button", { name: "Continue" }).click();
       await expect(page).toHaveURL(/\/advanced$/);

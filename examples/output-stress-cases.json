@@ -6,6 +6,7 @@
       "id": "lc-rfp-stress",
       "path": "generated/logikcull/pleading/valid/lc_pleading_stress_bates_endings.csv",
       "platform": "logikcull",
+      "expectedDetectedPlatform": "unknown",
       "workflow": "rfp_ranges",
       "expectedText": "RFP 01\r\nSYNSTRESS_000001-92\r\n\r\nRFP 02\r\nSYNSTRESS_000093-1596\r\n\r\nRFP 03\r\nSYNBOUND_000001-2\r\n\r\nRFP 04\r\nSYNBOUND_000009-10\r\n\r\nRFP 05\r\nSYNBOUND_000099-100\r\n\r\nRFP 06\r\nSYNBOUND_000999-1000\r\n\r\nRFP 07\r\nSYNBOUND_009999-10000\r\n\r\nRFP 08\r\nSYNBOUND_013473-15869\r\n\r\nRFP 09\r\nSYNBOUND_100000-100001\r\n\r\nRFP 10\r\nSYNSINGLE_000007\r\n\r\nRFP 11\r\n000001-9\r\n\r\nRFP 12\r\nSYNZERO_000000\r\n\r\nRFP 13\r\nSYNBIG_999999999999999998-999999999999999999\r\n\r\nRFP 14\r\nSYNWIDTH_00001-92\r\n\r\nRFP 15\r\nSYNMERGE_000001-9\r\n\r\nRFP 16\r\nSYNGAP_000001-2 and SYNGAP_000005-9\r\n",
       "expectedRows": 17,
