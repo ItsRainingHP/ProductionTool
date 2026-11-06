@@ -174,7 +174,7 @@ def test_output_limits_and_sqlite_full_are_controlled(tmp_path: Path, monkeypatc
     assert " and " in output.read_text(encoding="utf-8")
 
     real_spool = processor._populate_rfp_spool
-    monkeypatch.setattr(processor, "_populate_rfp_spool", lambda path, analyzed, database, max_bytes:
+    monkeypatch.setattr(processor, "_populate_rfp_spool", lambda path, analyzed, database, max_bytes, *_args:
                         real_spool(path, analyzed, database, None))
     with pytest.raises(ProcessingLimitError, match="per-job work limit"):
         write_output(output, source, analysis, "rfp_ranges", None, 0, max_work_bytes=1)
@@ -202,7 +202,8 @@ def test_rfp_with_no_recoverable_rows_is_not_written(tmp_path: Path) -> None:
     source = source_file(tmp_path, "bad-ranges.csv", "Begin Bates,End Bates,RFP\nABC_4,ABC_1,RFP 01\n")
     analysis = analyze_csv(source, source.name)
     output = tmp_path / "empty.txt"
-    with pytest.raises(ProcessingLimitError, match="no recoverable output rows"):
+    from app.request_sources import RequestConfigurationError
+    with pytest.raises(RequestConfigurationError, match="no recoverable RFP ranges"):
         write_output(output, source, analysis, "rfp_ranges", None, 0)
     assert not output.exists()
 

@@ -16,6 +16,18 @@ const draft = {
 beforeEach(() => window.sessionStorage.clear());
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
+it("restores request layouts and input separators, rejecting unknown source columns", () => {
+  const sourceJob = { ...job, analysis: { headers: ["Begin", "End", "Matter"],
+    begin_bates_header: "Begin", end_bates_header: "End" } } as Job;
+  const configured = { ...draft, pleadingSettings: { ...draft.pleadingSettings,
+    request_sources: [{ column: "Matter", layout: "category" as const, input_separator: "semicolon" as const }] } };
+  saveAdvancedDraft(configured);
+  expect(loadAdvancedDraft(sourceJob).draft?.pleadingSettings).toEqual(configured.pleadingSettings);
+  saveAdvancedDraft({ ...configured, pleadingSettings: { ...configured.pleadingSettings,
+    request_sources: [{ ...configured.pleadingSettings.request_sources[0], column: "Unknown" }] } });
+  expect(loadAdvancedDraft(sourceJob).status).toBe("stale");
+});
+
 it("restores only a matching live job configuration in this tab", () => {
   const populated = { ...draft, mappingColumns: [{
     id: "author", name: "Author", source_fields: ["From"],

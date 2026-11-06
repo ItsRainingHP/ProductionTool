@@ -17,11 +17,12 @@ import { createJob, deleteJob, finalizeJob, getCapabilities, getJob, getPreview,
 import { clearAdvancedDraft, loadAdvancedDraft, saveAdvancedDraft } from "@/lib/advanced-draft";
 import { defaultOutputFilename, formatBytes, platformConfidenceLabel, platformConfidenceSentence } from "@/lib/format";
 import type { Capabilities, Job, MappingTemplate, OutputColumn, PleadingSettings, Preview, Workflow } from "@/lib/types";
-import { blockingIssues, clientFileError, validationTone, warningIssues, warningsAcknowledged } from "@/lib/validation";
+import { blockingIssues, clientFileError, csvAnalysis, validationTone, warningIssues, warningsAcknowledged } from "@/lib/validation";
 import { MappingEditor } from "./mapping-editor";
 import { TemplateManager } from "./template-manager";
 import { PersonalDataNotice } from "./personal-data-notice";
 import { DEFAULT_PLEADING_SETTINGS, PleadingSettingsEditor } from "./pleading-settings-editor";
+import { initialPleadingSettings, RequestSourcesEditor } from "./request-sources-editor";
 import { StepKey, Stepper, steps } from "./stepper";
 import { ValidationResults } from "./validation-results";
 import { WorkflowSelector } from "./workflow-selector";
@@ -178,7 +179,7 @@ export function Wizard() {
     if (!job) return;
     clearAdvancedDraft(job.job_id);
     setMappingColumns(job.mapping?.columns ?? []);
-    setPleadingSettingsState(job.pleading_settings ?? { ...DEFAULT_PLEADING_SETTINGS });
+    setPleadingSettingsState(initialPleadingSettings(job));
     setAcknowledged(job.reviewed_issue_codes ?? []);
     setAdvancedDirty(false);
     setDraftNotice("");
@@ -229,9 +230,10 @@ export function Wizard() {
         setAcknowledged(loaded.reviewed_issue_codes ?? []);
         if (loaded.status === "failed" && !loaded.analysis) setError(loaded.error ?? "CSV analysis failed. Choose the source CSV again.");
         if (loaded.error_code === "review_build_changed") setError(loaded.error ?? "The application was updated. Generate and review a new preview before finalizing.");
+        if (loaded.error_code === "request_source_configuration") setError(loaded.error ?? "Check the request source settings.");
         setSelectedWorkflow(loaded.workflow ?? (loaded.analysis?.detected_workflow === "unknown" ? null : loaded.analysis?.detected_workflow ?? null));
         if (loaded.mapping) setMappingColumns(loaded.mapping.columns);
-        setPleadingSettingsState(loaded.pleading_settings ?? { ...DEFAULT_PLEADING_SETTINGS });
+        setPleadingSettingsState(initialPleadingSettings(loaded));
         const draft = routeStep === "advanced" ? loadAdvancedDraft(loaded) : { status: "none" as const };
         if (draft.status === "restored" && draft.draft) {
           setAcknowledged(draft.draft.acknowledged);
@@ -377,13 +379,13 @@ export function Wizard() {
   };
 
   const confirmWorkflow = async () => {
-    if (!job || !selectedWorkflow || blockingIssues(job.analysis).length) return;
+    if (!job || !selectedWorkflow || blockingIssues(csvAnalysis(job.analysis)).length) return;
     setBusy(true); setError("");
     try {
       const updated = job.workflow === selectedWorkflow ? job : await setWorkflow(job.job_id, selectedWorkflow);
       setJob(updated);
       if (selectedWorkflow === "privilege_log") setMappingColumns(updated.mapping?.columns ?? defaultMapping(updated));
-      if (selectedWorkflow === "rfp_ranges") setPleadingSettingsState(updated.pleading_settings ?? { ...DEFAULT_PLEADING_SETTINGS });
+      if (selectedWorkflow === "rfp_ranges") setPleadingSettingsState(initialPleadingSettings(updated));
       if (job.workflow !== selectedWorkflow) { clearAdvancedDraft(job.job_id); setAdvancedDirty(false); }
       navigate("advanced");
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to save the workflow."); }
@@ -403,8 +405,12 @@ export function Wizard() {
       setAdvancedDirty(false);
       updated = await readyForReview(job.job_id, acknowledged);
       setJob(updated);
-      updated = await pollJob(job.job_id, setJob, (current) => current.status === "ready_for_review" || current.status === "failed" || current.error_code === "review_build_changed", controller.signal);
+      updated = await pollJob(job.job_id, setJob, (current) => current.status === "ready_for_review" || current.status === "failed" || current.status === "needs_configuration", controller.signal);
       controller.signal.throwIfAborted();
+      if (updated.error_code === "request_source_configuration") {
+        setError(updated.error ?? "Check the request source settings and listed issues.");
+        return;
+      }
       if (updated.error_code === "review_build_changed") {
         setError(updated.error ?? "The application was updated. Generate and review a new preview before finalizing.");
         navigate("advanced");
@@ -497,8 +503,9 @@ export function Wizard() {
     } finally { setBusy(false); }
   };
 
-  const validationState = validationTone(job?.analysis);
-  const hasWarnings = warningIssues(job?.analysis).length > 0;
+  const visibleAnalysis = step === "data" ? csvAnalysis(job?.analysis) : job?.analysis;
+  const validationState = validationTone(visibleAnalysis);
+  const hasWarnings = warningIssues(visibleAnalysis).length > 0;
   const isBlocked = validationState === "blocked";
   const canAdvanceIssues = warningsAcknowledged(job?.analysis, acknowledged);
   const isTextOutput = job?.workflow === "rfp_ranges";
@@ -608,14 +615,14 @@ export function Wizard() {
                   <Text variant="body-default-m" onBackground="neutral-weak" className="platform-summary">{isBlocked ? "This CSV was analyzed, but it cannot be processed safely." : platformConfidenceSentence(job.analysis)}</Text>
                   <Text variant="body-default-s" onBackground="neutral-weak">{job.analysis.row_count.toLocaleString()} rows · {job.analysis.column_count.toLocaleString()} columns</Text>
                 </Column>
-                <ValidationResults analysis={job.analysis} />
+                <ValidationResults analysis={visibleAnalysis!} />
                 <PersonalDataNotice findings={job.analysis.personal_data_findings} />
                 {!isBlocked && <WorkflowSelector value={selectedWorkflow} onChange={setSelectedWorkflow} />}
                 <Panel>
                   <Row gap="24" wrap vertical="center">
                     <Column gap="4"><Text variant="label-default-xs" onBackground="neutral-weak">FILE</Text><Text variant="label-strong-s">{job.analysis.filename}</Text></Column>
                     <Column gap="4"><Text variant="label-default-xs" onBackground="neutral-weak">SIZE</Text><Text variant="label-strong-s">{formatBytes(job.analysis.size_bytes)}</Text></Column>
-                    <Column gap="4"><Text variant="label-default-xs" onBackground="neutral-weak">CONTENT</Text><Text variant="label-strong-s">{job.analysis.detected_workflow === "rfp_ranges" ? "RFP data" : "Privilege data"}</Text></Column>
+                    <Column gap="4"><Text variant="label-default-xs" onBackground="neutral-weak">CONTENT</Text><Text variant="label-strong-s">{job.analysis.detected_workflow === "rfp_ranges" ? "RFP data" : job.analysis.detected_workflow === "privilege_log" ? "Privilege data" : "Unclassified data"}</Text></Column>
                     <Column gap="4"><Text variant="label-default-xs" onBackground="neutral-weak">SOURCE MATCH</Text><Tag variant="brand">{platformConfidenceLabel(job.analysis)}</Tag></Column>
                   </Row>
                   <Text variant="body-default-xs" onBackground="neutral-weak">Confidence is based on normalized column-name patterns. Filenames and row contents are not used.</Text>
@@ -644,10 +651,17 @@ export function Wizard() {
                 />
                 {job.workflow === "rfp_ranges" ? (
                   <Column gap="16">
+                    <RequestSourcesEditor analysis={job.analysis} settings={pleadingSettings} onChange={(settings) => {
+                      setPleadingSettingsState(settings); setAdvancedDirty(true); setError("");
+                      setJob({ ...job, analysis: { ...job.analysis!, issues: job.analysis!.issues.filter((issue) =>
+                        !["unexpected_request_value", "ambiguous_request_separator"].includes(issue.code)) } });
+                      setAcknowledged((current) => current.filter((code) =>
+                        !["unexpected_request_value", "ambiguous_request_separator"].includes(code)));
+                    }} />
                     <Grid data-tour="range-summary" columns="4" gap="16" m={{ columns: 2 }} s={{ columns: 1 }}>
                       {[
                         ["Prefixes", job.analysis.prefixes.length ? job.analysis.prefixes.join(", ") : "None"],
-                        ["Requests", job.analysis.request_count.toLocaleString()],
+                        ["Suggested requests", job.analysis.request_count.toLocaleString()],
                         ["Gaps preserved", job.analysis.gap_count.toLocaleString()],
                         ["Duplicates", job.analysis.duplicate_ranges.toLocaleString()],
                       ].map(([label, value]) => <Panel key={label}><Text variant="label-default-xs" onBackground="neutral-weak">{label.toUpperCase()}</Text><Heading as="p" variant="heading-strong-m">{value}</Heading></Panel>)}

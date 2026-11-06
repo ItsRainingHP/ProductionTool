@@ -651,12 +651,13 @@ def test_configuration_rejects_incompatible_workflows_and_missing_fields(
         job = store._load_locked(job_id, connection)
         job.analysis.request_count = 0
         job.workflow = "rfp_ranges"
+        job.pleading_settings = PleadingSettings(request_sources=[])
         store._save_locked(job, connection)
-    with pytest.raises(HTTPException, match="no recoverable RFP ranges"):
+    with pytest.raises(HTTPException, match="Select at least one request source"):
         store.mark_review_ready(job_id, [])
     with store._connect() as connection:
         job = store._load_locked(job_id, connection)
-        job.analysis.rfp_layout = None
+        job.analysis.begin_bates_header = None
         store._save_locked(job, connection)
     with pytest.raises(HTTPException, match="required for RFP range"):
         store.set_workflow(job_id, "rfp_ranges")

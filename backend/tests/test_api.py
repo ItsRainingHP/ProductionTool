@@ -51,8 +51,8 @@ def test_rfp_job_lifecycle() -> None:
             )
         assert uploaded.status_code == 202
         analyzed = _wait_job(client, created["job_id"], {"needs_configuration", "failed"})
-        assert analyzed["analysis"]["platform"] == "logikcull"
-        assert analyzed["analysis"]["platform_confidence"] >= 80
+        assert analyzed["analysis"]["platform"] == "unknown"
+        assert analyzed["analysis"]["platform_confidence"] == 40
         assert analyzed["workflow"] is None
         assert analyzed["pleading_settings"] is None
         selected = client.put(f"/api/v1/jobs/{created['job_id']}/workflow", json={"workflow": "rfp_ranges"})
@@ -62,10 +62,13 @@ def test_rfp_job_lifecycle() -> None:
             json={"delimiter": "semicolon", "include_and": False},
         )
         assert configured.status_code == 200
-        assert configured.json()["pleading_settings"] == {"delimiter": "semicolon", "include_and": False}
+        assert configured.json()["pleading_settings"] == {
+            "delimiter": "semicolon", "include_and": False, "request_sources": None,
+        }
         assert client.get(f"/api/v1/jobs/{created['job_id']}").json()["pleading_settings"] == {
             "delimiter": "semicolon",
             "include_and": False,
+            "request_sources": None,
         }
         assert client.post(f"/api/v1/jobs/{created['job_id']}/review", json={}).status_code == 202
         reviewed = _wait_job(client, created["job_id"], {"ready_for_review", "failed"})
@@ -97,7 +100,9 @@ def test_rfp_job_lifecycle() -> None:
         assert json_receipt.status_code == 200
         assert json_receipt.json()["output_sha256"]
         assert json_receipt.json()["input_sha256"]
-        assert json_receipt.json()["pleading_settings"] == {"delimiter": "semicolon", "include_and": False}
+        assert json_receipt.json()["pleading_settings"] == {
+            "delimiter": "semicolon", "include_and": False, "request_sources": None,
+        }
         text_receipt = client.get(f"/api/v1/jobs/{created['job_id']}/receipt.txt")
         assert text_receipt.status_code == 200
         assert b"Production Tool Processing Receipt" in text_receipt.content
@@ -107,6 +112,109 @@ def test_rfp_job_lifecycle() -> None:
         assert download.headers["x-content-type-options"] == "nosniff"
         assert download.headers["x-frame-options"] == "DENY"
         assert client.delete(f"/api/v1/jobs/{created['job_id']}").status_code == 204
+
+
+def test_custom_everlaw_request_sources_recover_and_finalize() -> None:
+    source = (b'Bates/Control #,End Bates/Control #,Matter,Matter: Alpha,Privilege: Withheld\n'
+              b'SYN_0001,SYN_0002,"Alpha; Beta",Alpha,null\n'
+              b'SYN_0003,SYN_0004,null,null,Withheld\n')
+    with TestClient(app) as client:
+        job_id, uploaded = _create_and_upload(client, "custom-codes.csv", source)
+        assert uploaded.status_code == 202
+        endpoint = f"/api/v1/jobs/{job_id}"
+        analysis = client.get(endpoint).json()["analysis"]
+        assert analysis["request_count"] == 0
+        assert not any(c["suggested"] for c in analysis["request_candidates"])
+        assert client.put(endpoint + "/workflow", json={"workflow": "rfp_ranges"}).status_code == 200
+        for columns in [[{"column": "Missing"}], [{"column": "Bates/Control #"}],
+                        [{"column": "Matter"}, {"column": "Matter"}]]:
+            assert client.put(endpoint + "/pleading-settings", json={"request_sources": columns}).status_code == 422
+        settings = {"request_sources": [{"column": "Matter", "layout": "category"}]}
+        assert client.put(endpoint + "/pleading-settings", json=settings).status_code == 200
+        assert client.post(endpoint + "/review", json={}).status_code == 202
+        problem = _wait_job(client, job_id, {"needs_configuration", "failed"})
+        assert problem["status"] == "needs_configuration"
+        assert problem["error_code"] == "request_source_configuration"
+        assert problem["analysis"]["issues"][0]["code"] == "ambiguous_request_separator"
+        assert client.get(endpoint + "/preview").status_code == 409
+        switched = client.put(endpoint + "/workflow", json={"workflow": "privilege_log"}).json()
+        assert switched["analysis"]["issues"] == []
+        assert switched["error_code"] is None
+        client.put(endpoint + "/workflow", json={"workflow": "rfp_ranges"}).raise_for_status()
+        settings["request_sources"][0]["input_separator"] = "semicolon"
+        settings["request_sources"].append({"column": "Matter: Alpha"})
+        saved = client.put(endpoint + "/pleading-settings", json=settings).json()
+        assert saved["analysis"]["issues"] == []
+        assert client.get(endpoint).json()["pleading_settings"] == saved["pleading_settings"]
+        assert client.post(endpoint + "/review", json={}).status_code == 202
+        ready = _wait_job(client, job_id, {"ready_for_review", "needs_configuration", "failed"})
+        assert ready["status"] == "ready_for_review", ready
+        preview = client.get(endpoint + "/preview").json()
+        assert preview["text"] == "Alpha\r\nSYN_0001-2\r\n\r\nBeta\r\nSYN_0001-2\r\n"
+        assert client.post(endpoint + "/finalize", json={
+            "output_filename": "custom", "review_token": preview["review_token"],
+        }).status_code == 202
+        assert _wait_job(client, job_id, {"complete", "failed"})["status"] == "complete"
+        assert client.get(endpoint + "/download").content.decode() == preview["text"]
+        receipt = client.get(endpoint + "/receipt.json").json()
+        assert receipt["pleading_settings"] == saved["pleading_settings"]
+        assert receipt["output_sha256"] == preview["artifact_sha256"]
+        assert store.source_path(job_id).read_bytes() == source
+        assert client.put(endpoint + "/pleading-settings", json={"request_sources": []}).status_code == 200
+        assert client.get(endpoint + "/preview").status_code == 409
+        assert client.post(endpoint + "/review", json={}).status_code == 409
+
+
+def test_selected_request_warnings_require_acknowledgment_and_empty_sources_recover() -> None:
+    source = (b"Begin Bates,End Bates,Custom: Notes,Empty\n"
+              b"SYN_0001,SYN_0002,Notes,null\nSYN_0003,SYN_0004,Wrong value,null\n")
+    with TestClient(app) as client:
+        job_id, _ = _create_and_upload(client, "custom.csv", source)
+        endpoint = f"/api/v1/jobs/{job_id}"
+        client.put(endpoint + "/workflow", json={"workflow": "rfp_ranges"}).raise_for_status()
+        settings = {"request_sources": [{"column": "Custom: Notes"}]}
+        client.put(endpoint + "/pleading-settings", json=settings).raise_for_status()
+        assert client.post(endpoint + "/review", json={}).status_code == 202
+        problem = _wait_job(client, job_id, {"needs_configuration", "failed"})
+        assert problem["status"] == "needs_configuration"
+        assert problem["analysis"]["issues"][0]["code"] == "unexpected_request_value"
+        assert client.post(endpoint + "/review", json={}).status_code == 409
+        settings["delimiter"] = "semicolon"
+        client.put(endpoint + "/pleading-settings", json=settings).raise_for_status()
+        assert client.post(endpoint + "/review", json={
+            "acknowledged_issue_codes": ["unexpected_request_value"],
+        }).status_code == 202
+        ready = _wait_job(client, job_id, {"ready_for_review", "needs_configuration", "failed"})
+        assert ready["status"] == "ready_for_review"
+        assert client.get(endpoint + "/preview").json()["text"] == "Notes\r\nSYN_0001-2\r\n"
+        client.put(endpoint + "/pleading-settings", json={"request_sources": [{"column": "Empty"}]}).raise_for_status()
+        assert client.post(endpoint + "/review", json={}).status_code == 202
+        empty = _wait_job(client, job_id, {"needs_configuration", "failed"})
+        assert empty["status"] == "needs_configuration"
+        assert "no recoverable" in empty["error"]
+
+
+def test_receipt_sums_request_warning_occurrences_across_columns() -> None:
+    source = (b"Begin Bates,End Bates,Matter: Notes,Matter: Emails\n"
+              b"SYN_0001,SYN_0002,Notes,Emails\nSYN_0003,SYN_0004,Wrong,Wrong\n")
+    with TestClient(app) as client:
+        job_id, _ = _create_and_upload(client, "synthetic.csv", source)
+        endpoint = f"/api/v1/jobs/{job_id}"
+        client.put(endpoint + "/workflow", json={"workflow": "rfp_ranges"}).raise_for_status()
+        client.put(endpoint + "/pleading-settings", json={"request_sources": [
+            {"column": "Matter: Notes"}, {"column": "Matter: Emails"},
+        ]}).raise_for_status()
+        client.post(endpoint + "/review", json={}).raise_for_status()
+        problem = _wait_job(client, job_id, {"needs_configuration", "failed"})
+        assert len(problem["analysis"]["issues"]) == 2
+        acknowledged = ["unexpected_request_value"]
+        client.post(endpoint + "/review", json={"acknowledged_issue_codes": acknowledged}).raise_for_status()
+        ready = _wait_job(client, job_id, {"ready_for_review", "needs_configuration", "failed"})
+        assert ready["status"] == "ready_for_review"
+        client.post(endpoint + "/finalize", json={"output_filename": "synthetic",
+            "review_token": ready["review_token"], "acknowledged_issue_codes": acknowledged}).raise_for_status()
+        assert _wait_job(client, job_id, {"complete", "failed"})["status"] == "complete"
+        assert client.get(endpoint + "/receipt.json").json()["issue_counts"] == {"unexpected_request_value": 2}
 
 
 def test_capabilities_are_the_runtime_source_of_limits() -> None:
@@ -627,7 +735,10 @@ def test_incompatible_rfp_workflow_and_stale_review_token_are_rejected() -> None
 )
 @pytest.mark.parametrize("enabled", [True, False])
 def test_legacy_http_mapping_and_mixed_request_rejection(headers: str, platform: str, enabled: bool) -> None:
-    source = (headers + ",Tag: Attorney Client\nSYN_1,SYN_1,TRUE\n").encode()
+    metadata_header = ",Author" if platform == "logikcull" else ""
+    metadata_value = ",Synthetic reviewer" if platform == "logikcull" else ""
+    source = (headers + ",Tag: Attorney Client" + metadata_header
+              + "\nSYN_1,SYN_1,TRUE" + metadata_value + "\n").encode()
     column = {"id": "flag", "name": "Reason", "source_fields": ["Tag: Attorney Client"]}
     legacy = {"columns": [column], "replace_true_with_header": enabled}
     with TestClient(app) as client:

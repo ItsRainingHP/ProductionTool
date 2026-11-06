@@ -48,6 +48,7 @@ from .processor import (
     write_output,
 )
 from .release import APP_VERSION, BUILD_ID, IMAGE_DIGEST, SOURCE_REVISION
+from .request_sources import REQUEST_ISSUE_CODES, RequestConfigurationError
 
 SAFE_FILENAME = re.compile(r"^[^<>:\"/\\|?*\x00-\x1f]+$")
 WINDOWS_RESERVED = {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10))}
@@ -632,10 +633,13 @@ class JobStore:
             if analysis is None:
                 raise HTTPException(409, "A readable CSV must be uploaded first")
             if workflow == "rfp_ranges" and (
-                not analysis.rfp_layout or not analysis.begin_bates_header or not analysis.end_bates_header
+                not analysis.begin_bates_header or not analysis.end_bates_header
             ):
                 raise HTTPException(409, "This CSV does not contain the columns required for RFP range output")
             job.workflow = workflow
+            if workflow == "privilege_log":
+                analysis.issues = [issue for issue in analysis.issues if issue.code not in REQUEST_ISSUE_CODES]
+            job.error = job.error_code = None
             job.mapping = None if workflow == "rfp_ranges" else job.mapping
             job.pleading_settings = (job.pleading_settings or PleadingSettings()) if workflow == "rfp_ranges" else None
             self._invalidate_review(job)
@@ -649,6 +653,18 @@ class JobStore:
             self._ensure_configurable(job)
             if job.workflow != "rfp_ranges":
                 raise HTTPException(409, "Select the RFP / Pleading Ranges workflow first")
+            if settings.request_sources is not None:
+                if job.analysis is None:
+                    raise HTTPException(409, "Upload a readable CSV first")
+                allowed = set(job.analysis.headers) - {
+                    job.analysis.begin_bates_header, job.analysis.end_bates_header,
+                }
+                if any(source.column not in allowed for source in settings.request_sources):
+                    raise HTTPException(422, "Request sources must name non-Bates columns in this CSV")
+            if job.analysis and (
+                job.pleading_settings is None or job.pleading_settings.request_sources != settings.request_sources
+            ):
+                job.analysis.issues = [i for i in job.analysis.issues if i.code not in REQUEST_ISSUE_CODES]
             job.pleading_settings = settings
             self._invalidate_review(job)
             job.status = JobStatus.needs_configuration
@@ -750,8 +766,8 @@ class JobStore:
                 raise HTTPException(409, "A readable CSV must be uploaded first")
             if not job.workflow:
                 raise HTTPException(409, "Confirm the workflow before preparing review")
-            if job.workflow == "rfp_ranges" and analysis.request_count == 0:
-                raise HTTPException(409, "The selected workflow has no recoverable RFP ranges")
+            if job.workflow == "rfp_ranges" and job.pleading_settings and job.pleading_settings.request_sources == []:
+                raise HTTPException(409, "Select at least one request source")
             if job.workflow == "privilege_log" and not job.mapping:
                 raise HTTPException(409, "Configure at least one output column")
             acknowledged_codes = self._validate_acknowledgments(job, acknowledged)
@@ -872,6 +888,8 @@ class JobStore:
                         self._run_finalize(job_id, payload, lease_token)
                     else:
                         raise RuntimeError(f"Unknown task {task}")
+            except RequestConfigurationError as exc:
+                self._mark_worker_failure(job_id, exc, lease_token)
             except Exception as exc:
                 self._worker_failures += 1
                 self._mark_worker_failure(job_id, exc, lease_token)
@@ -958,6 +976,7 @@ class JobStore:
             job.pleading_settings,
             self.max_work_bytes,
             scratch_dir=self._directory(job_id) / "scratch",
+            acknowledged_issue_codes=payload["acknowledged"],
         )
         if self._cancelled(job_id):
             temporary.unlink(missing_ok=True)
@@ -1051,6 +1070,9 @@ class JobStore:
             raise RuntimeError("The completed job configuration is incomplete")
         source = self.source_path(job.job_id)
         output = self._directory(job.job_id) / ("output.txt" if job.workflow == "rfp_ranges" else "output.csv")
+        issue_counts: dict[str, int] = {}
+        for issue in analysis.issues:
+            issue_counts[issue.code] = issue_counts.get(issue.code, 0) + issue.count
         return Receipt(
             app_version=job.review_build.app_version,
             build_id=job.review_build.build_id,
@@ -1076,7 +1098,7 @@ class JobStore:
             platform_confidence=analysis.platform_confidence,
             mapping=job.mapping,
             pleading_settings=job.pleading_settings,
-            issue_counts={issue.code: issue.count for issue in analysis.issues},
+            issue_counts=issue_counts,
             acknowledged_issue_codes=acknowledged,
             personal_data_counts={finding.category: finding.count for finding in analysis.personal_data_findings},
             output_stats=stats,
@@ -1089,6 +1111,18 @@ class JobStore:
             try:
                 job = self._load_locked(job_id, connection)
             except HTTPException:
+                return
+            if isinstance(error, RequestConfigurationError):
+                job.status = JobStatus.needs_configuration
+                job.error = str(error)
+                job.error_code = "request_source_configuration"
+                if job.analysis:
+                    job.analysis.issues = [i for i in job.analysis.issues if i.code not in REQUEST_ISSUE_CODES]
+                    job.analysis.issues.extend(error.issues)
+                for path in self._directory(job_id).glob("*.partial"):
+                    path.unlink(missing_ok=True)
+                self._set_reservation_locked(job_id, 0, connection)
+                self._save_locked(job, connection, preserve_task=False)
                 return
             job.status = JobStatus.failed
             capacity_error = (

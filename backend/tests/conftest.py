@@ -4,8 +4,18 @@ import sys
 import tempfile
 from pathlib import Path
 
+import pytest
+
 _storage = None
 _previous = None
+
+
+@pytest.fixture(autouse=True)
+def local_status_checks(monkeypatch, request):
+    """Tests never consult the live registry; registry tests supply their own mocks."""
+    if request.path.name != "test_system_status.py":
+        from app import system_status
+        monkeypatch.setattr(system_status, "published_version", lambda: system_status.APP_VERSION)
 
 
 def pytest_configure(config):

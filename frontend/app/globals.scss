@@ -152,6 +152,29 @@ input:focus-visible,
   stroke-width: 1.5px;
 }
 
+.request-source-row {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--neutral-alpha-weak);
+  overflow-wrap: anywhere;
+}
+
+.request-source-control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 100%;
+  font-size: 0.875rem;
+
+  select {
+    padding: 8px 12px;
+    border: 1px solid var(--neutral-alpha-medium);
+    border-radius: 8px;
+    background: var(--surface-background);
+    color: var(--neutral-on-background-strong);
+    max-width: 100%;
+  }
+}
+
 @media (max-width: 480px) {
   .app-header > div { flex-wrap: wrap; gap: 8px; }
   .app-header-actions { gap: 4px !important; }

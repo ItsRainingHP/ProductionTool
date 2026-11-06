@@ -62,8 +62,14 @@ def test_manifest_classification_and_errors(fixture: dict) -> None:
 def test_valid_corpus_platform_confidence(fixture: dict) -> None:
     path = CORPUS / fixture["path"]
     analysis = analyze_csv(path, path.name)
-    assert analysis.platform == fixture["platform"]
-    assert analysis.platform_confidence >= 80
+    # These fixtures have only shared Bates names and a combined RFP field, not vendor evidence.
+    shared_only = {"GEN-LC-PLEA-001", "GEN-LC-PLEA-012", "GEN-LC-PLEA-013", "REF-001",
+                   "GEN-LC-PLEA-LARGE-END", "GEN-LC-PLEA-STRESS-001"}
+    if fixture["id"] in shared_only:
+        assert (analysis.platform, analysis.platform_confidence) == ("unknown", 40)
+    else:
+        assert analysis.platform == fixture["platform"]
+        assert analysis.platform_confidence >= 80
 
 
 def test_platform_detection_normalizes_case_whitespace_and_order() -> None:
@@ -74,14 +80,14 @@ def test_platform_detection_normalizes_case_whitespace_and_order() -> None:
 
 def test_platform_detection_partial_ambiguous_and_generic_headers() -> None:
     assert detect_platform(["Bates/Control #"]) == ("unknown", 40)
-    assert detect_platform(["Bates/Control #", "End Bates/Control #"]) == ("logikcull", 80)
+    assert detect_platform(["Bates/Control #", "End Bates/Control #"]) == ("unknown", 40)
     mixed = [
         "Bates/Control #",
         "End Bates/Control #",
         "Begin Bates num from MATTER",
         "End Bates num from MATTER",
     ]
-    assert detect_platform(mixed) == ("unknown", 40)
+    assert detect_platform(mixed) == ("everlaw", 60)
     assert detect_platform(["Begin Bates", "End Bates", "RFP"]) == ("unknown", 0)
 
 
@@ -114,12 +120,12 @@ def test_platform_confidence_for_unreadable_and_fatal_files(tmp_path: Path) -> N
     invalid_utf8 = tmp_path / "invalid.csv"
     invalid_utf8.write_bytes(b"Bates/Control #,End Bates/Control #\n\xff")
     invalid_analysis = analyze_csv(invalid_utf8, invalid_utf8.name)
-    assert (invalid_analysis.platform, invalid_analysis.platform_confidence) == ("logikcull", 80)
+    assert (invalid_analysis.platform, invalid_analysis.platform_confidence) == ("unknown", 40)
 
     malformed = tmp_path / "malformed.csv"
     malformed.write_text('Bates/Control #,End Bates/Control #\n"TEST_0001,TEST_0002\n', encoding="utf-8")
     malformed_analysis = analyze_csv(malformed, malformed.name)
-    assert (malformed_analysis.platform, malformed_analysis.platform_confidence) == ("logikcull", 80)
+    assert (malformed_analysis.platform, malformed_analysis.platform_confidence) == ("unknown", 40)
     assert any(issue.severity == "fatal" for issue in malformed_analysis.issues)
 
 
@@ -368,7 +374,7 @@ def test_true_replacement_precedes_direct_join_fill_and_normalization(tmp_path: 
     )
     original = source.read_bytes()
     analysis = analyze_csv(source, source.name)
-    assert analysis.platform == "logikcull"
+    assert analysis.platform == "unknown"
     mapping = true_mapping({"replace_true_with_header": enabled, "columns": [
         {"id": "direct", "name": "Direct", "source_fields": ["Tag: ATTORNEY CLIENT"]},
         {"id": "join", "name": "Join", "source_fields": ["Tag: ATTORNEY CLIENT", "tag: Work Product"],

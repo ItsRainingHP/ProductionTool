@@ -29,6 +29,14 @@ Personal-data findings are informational. They do not modify the uploaded CSV an
 4. Configure the requested formatting or field mapping.
 5. Review a preview, acknowledge any overrideable warnings, and download the generated file.
 
+### Everlaw request sources
+
+For RFP/pleading output, **Request sources** suggests recognizable request columns and lets you select codes with any matter-specific names. Individual-code exports use `Category: Code` headings and matching code text or affirmative markers; blank and literal `null` values are unassigned. Category exports list applied codes in cells. Choose **Category/code list** and review the input code separator when necessary. Input code separators are independent of the delimiter between output Bates ranges.
+
+Explicit source settings preserve complete code names, including descriptions and suffixes such as `(2)`. Codes are identified by category and full name, so equal request numbers do not merge distinct codes. Identical code names from different categories receive category-qualified output headings. Existing clients that omit `request_sources` retain legacy inference and headings. Shared Bates field names alone no longer establish a source platform, and an unknown source remains processable.
+
+Local qualification can use `backend/scripts/run_local_rfp_test_server.py --data-dir artifacts/local-rfp-test-data --port 8016` with the repository's Python environment. It binds only to `127.0.0.1`, uses a separate store, and stubs registry update checks. The focused `everlaw-requests.spec.ts` browser tests reject nonlocal targets and requests. `LOCAL_EVERLAW_CSV` optionally supplies a private local acceptance file; it is never added to fixtures.
+
 ### Per-column TRUE replacement in 2.0.5
 
 Mapping requests now put `replace_true_with_header` on each output column (default `false`). The deprecated job-wide request flag remains accepted for legacy clients only: it retains its previous Logikcull-only behavior and cannot be combined with explicit column flags. Mixed requests return HTTP 422 with instructions to reload or update the request. Saved mappings and responses contain only column settings.

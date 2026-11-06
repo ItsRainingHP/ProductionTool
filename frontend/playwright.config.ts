@@ -19,6 +19,8 @@ export default defineConfig({
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000",
+    // Local qualification can use installed Chrome/Edge without downloading a browser.
+    channel: process.env.PLAYWRIGHT_BROWSER_CHANNEL,
     trace: "retain-on-failure",
     ...devices["Desktop Chrome"],
   },

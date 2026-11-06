@@ -546,6 +546,59 @@ describe("wizard recovery", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Final package failed");
   });
 
+  it("returns request configuration problems to Advanced without opening Review", async () => {
+    navigation.segments = ["job-1", "advanced"];
+    const configured = { ...reviewed, status: "needs_configuration", analysis: { ...analysis, issues: [] } } as Job;
+    vi.mocked(getJob).mockResolvedValueOnce(configured).mockResolvedValueOnce({ ...configured,
+      error_code: "request_source_configuration", error: "Choose an input code separator" });
+    vi.mocked(setPleadingSettings).mockResolvedValue(configured);
+    vi.mocked(readyForReview).mockResolvedValue({ ...configured, status: "preparing_review" });
+    render(<Providers><Wizard /></Providers>);
+    fireEvent.click(await screen.findByRole("button", { name: "Review output" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Choose an input code separator");
+    expect(navigation.push).not.toHaveBeenCalledWith("/wizard/job-1/review");
+  });
+
+  it("lets users change output after a request separator error", async () => {
+    navigation.segments = ["job-1", "data"];
+    const sourceError = { code: "ambiguous_request_separator", severity: "error" as const,
+      message: "Choose a code separator", overrideable: false, row: 2, column: "RFP", count: 1 };
+    const configured = { ...reviewed, status: "needs_configuration", workflow: "rfp_ranges",
+      analysis: { ...analysis, issues: [sourceError] } } as Job;
+    vi.mocked(getJob).mockResolvedValue(configured);
+    vi.mocked(setWorkflow).mockResolvedValue({ ...configured, workflow: "privilege_log",
+      analysis: { ...analysis, issues: [] } });
+    render(<Providers><Wizard /></Providers>);
+    await screen.findByRole("heading", { name: "Choose the output" });
+    expect(screen.queryByText("Choose a code separator")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: /Privilege Log/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await waitFor(() => expect(setWorkflow).toHaveBeenCalledWith("job-1", "privilege_log"));
+    expect(navigation.push).toHaveBeenCalledWith("/wizard/job-1/advanced");
+  });
+
+  it("source edits clear old request warnings and save explicit selections", async () => {
+    navigation.segments = ["job-1", "advanced"];
+    const warning = { code: "unexpected_request_value", severity: "warning" as const,
+      message: "Old source warning", overrideable: true, row: 2, column: "Tag: RFP 01", count: 1 };
+    const configured = { ...reviewed, status: "needs_configuration", analysis: { ...analysis, issues: [warning],
+      request_candidates: [{ column: "Tag: RFP 01", category: "Tag", code: "RFP 01", layout: "individual",
+        input_separator: "auto", suggested: true, samples: ["TRUE"] }] } } as Job;
+    vi.mocked(getJob).mockResolvedValueOnce(configured).mockResolvedValueOnce({ ...configured,
+      error_code: "request_source_configuration", error: "No requests selected" });
+    vi.mocked(setPleadingSettings).mockResolvedValue(configured);
+    vi.mocked(readyForReview).mockResolvedValue({ ...configured, status: "preparing_review" });
+    render(<Providers><Wizard /></Providers>);
+    await screen.findByRole("heading", { name: "Request sources" });
+    fireEvent.click(screen.getByRole("checkbox", { name: "RFP 01" }));
+    expect(screen.queryByText("Old source warning")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox", { name: "RFP 01" }));
+    fireEvent.click(screen.getByRole("button", { name: "Review output" }));
+    await waitFor(() => expect(setPleadingSettings).toHaveBeenCalledWith("job-1", expect.objectContaining({
+      request_sources: [{ column: "Tag: RFP 01", layout: "individual", input_separator: "auto" }],
+    })));
+  });
+
   it("clears the draft once Advanced settings save even if review preparation fails", async () => {
     navigation.segments = ["job-1", "advanced"];
     const configured = { ...reviewed, status: "needs_configuration", analysis: { ...analysis, issues: [] } } as Job;
