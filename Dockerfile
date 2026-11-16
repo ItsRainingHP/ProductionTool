@@ -14,7 +14,7 @@ COPY frontend/ ./
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
-FROM cgr.dev/chainguard/wolfi-base@sha256:88a20e2d017bd20cdc0cb3910de603e7bea9512a6c351a8dd3c9df212ab03d73 AS runtime-base
+FROM cgr.dev/chainguard/wolfi-base@sha256:2c12da5496e21e99003b3db3b9246f025e53d533c4df334205391260f1e8f85b AS runtime-base
 RUN apk upgrade --no-cache \
     && apk add --no-cache \
         python-3.14-base=3.14.10_git20261028-r0 \
